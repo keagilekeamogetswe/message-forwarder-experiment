@@ -1,0 +1,33 @@
+{
+  "name": "chat",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/keagilekeamogetswe/message-forwarder-experiment#readme",
+  "bugs": {
+    "url": "https://github.com/keagilekeamogetswe/message-forwarder-experiment/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/keagilekeamogetswe/message-forwarder-experiment.git"
+  },
+  "license": "ISC",
+  "author": "Keamogetswe Keagile",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.14.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}
