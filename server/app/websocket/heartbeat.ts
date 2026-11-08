@@ -1,20 +1,19 @@
-import { WebSocketServer } from "ws";
-import { WSClient } from "@/websocket/types/ws.client";
+import { ClientRegistry } from "./services/client.registry";
 
-export function startHeartbeat(wss: WebSocketServer): void {
+export function startHeartbeat() {
   const timeout = parseInt(
     process.env.WEBSOCKET_HEARTBEAT_TIMEOUT ?? "30000",
     10,
   );
 
-  const interval = setInterval(() => {
-    for (const client of wss.clients) {
-      const ws = client as WSClient;
-
+  setInterval(() => {
+    for (const ws of ClientRegistry.all().values()) {
       if (!ws.isAlive) {
         console.log(`Heartbeat timeout. Closing user ${ws.user.user_id}`);
 
+        ClientRegistry.remove(ws);
         ws.terminate();
+
         continue;
       }
 
@@ -22,8 +21,4 @@ export function startHeartbeat(wss: WebSocketServer): void {
       ws.ping();
     }
   }, timeout);
-
-  wss.on("close", () => {
-    clearInterval(interval);
-  });
 }

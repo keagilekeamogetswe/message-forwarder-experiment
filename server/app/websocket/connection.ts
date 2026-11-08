@@ -1,5 +1,6 @@
 import { WSMessageEventHandler } from "./massage";
 import { WSClient } from "./types/ws.client";
+import { ClientRegistry } from "./services/client.registry";
 
 export function WSConnectionEvent(ws: WSClient) {
   const user = ws.user;
@@ -10,6 +11,7 @@ export function WSConnectionEvent(ws: WSClient) {
   }
 
   ws.isAlive = true;
+  ClientRegistry.add(ws);
 
   ws.on("pong", () => {
     ws.isAlive = true;
@@ -18,5 +20,10 @@ export function WSConnectionEvent(ws: WSClient) {
 
   ws.on("message", (data) => {
     WSMessageEventHandler(data, ws);
+  });
+
+  ws.on("close", () => {
+    ws.close();
+    ClientRegistry.remove(ws);
   });
 }
