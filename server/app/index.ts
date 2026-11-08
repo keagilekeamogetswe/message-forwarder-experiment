@@ -5,6 +5,7 @@ import { WebSocketServer } from "ws";
 import { AuthMiddleware } from "./middleware/authentication";
 import { WSUpgradeEvent } from "./websocket/upgrade";
 import { WSConnectionEvent } from "./websocket/connection";
+import { startHeartbeat } from "./websocket/heartbeat";
 
 const app = express();
 
@@ -20,7 +21,8 @@ const wss = new WebSocketServer({
 server.on("upgrade", (req, socket, head) => {
   WSUpgradeEvent(req, socket, head, wss);
 });
-
+// Start heartbeat
+startHeartbeat(wss);
 wss.on("connection", WSConnectionEvent);
 
 const HTTP_PORT = Number(process.env.HTTP_PORT ?? 3000);
