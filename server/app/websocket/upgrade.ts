@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import jwt from "utility/jwt";
 import type { WebSocketServer } from "ws";
+import { WSClient } from "./types/ws.client";
 
 export async function WSUpgradeEvent(
   req: IncomingMessage,
@@ -27,7 +28,12 @@ export async function WSUpgradeEvent(
     (req as any).user = user;
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req);
+      const client = ws as WSClient;
+
+      client.user = user;
+      client.isAlive = true;
+
+      wss.emit("connection", client, req);
     });
   } catch {
     socket.destroy();
