@@ -1,15 +1,19 @@
 import { WSMessageEventHandler } from "./massage";
-import { WebSocket } from "ws";
-import { IncomingMessage } from "http";
+import { WSClient } from "./types/ws.client";
 
-export function WSConnectionEvent(ws: WebSocket, req: IncomingMessage) {
-  const user = (req as any).user;
+export function WSConnectionEvent(ws: WSClient) {
+  const user = ws.user;
 
   if (!user) {
     ws.close();
     return;
   }
 
+  ws.isAlive = true;
+
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
   console.log("Connected:", user.user_id);
 
   ws.on("message", (data) => {
