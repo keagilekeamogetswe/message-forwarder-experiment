@@ -1,5 +1,3 @@
-// server/test/ws.connection.test.ts
-
 import { fork, ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -42,15 +40,19 @@ afterAll(() => {
   }
 });
 
+async function createToken() {
+  return jwt.sign(
+    {
+      user_id: "123",
+    },
+    "15m",
+    process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY!,
+  );
+}
+
 describe("WebSocket", () => {
   it("should connect successfully", async () => {
-    const token = await jwt.sign(
-      {
-        user_id: "123",
-      },
-      "15m",
-      process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY!,
-    );
+    const token = await createToken();
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
@@ -68,14 +70,8 @@ describe("WebSocket", () => {
     });
   });
 
-  it("should send and receive messages", async () => {
-    const token = await jwt.sign(
-      {
-        user_id: "123",
-      },
-      "15m",
-      process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY!,
-    );
+  it("should route chat.send messages", async () => {
+    const token = await createToken();
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
@@ -85,11 +81,119 @@ describe("WebSocket", () => {
       });
 
       ws.on("open", () => {
-        ws.send("hello");
+        ws.send(
+          JSON.stringify({
+            channel: "chat",
+            action: "send",
+            payload: {
+              message: "hello world",
+            },
+          }),
+        );
       });
 
-      ws.on("message", (data) => {
-        expect(data.toString()).toBe("hello");
+      ws.on("message", (raw) => {
+        const response = JSON.parse(raw.toString());
+
+        expect(response.success).toBe(true);
+        expect(response.message).toBe("message sent");
+
+        expect(response.intrinsic).toBeDefined();
+        expect(response.intrinsic.message_uuid).toBeDefined();
+
+        ws.close();
+        resolve();
+      });
+
+      ws.on("error", reject);
+    });
+  });
+
+  it("should reject unknown channels", async () => {
+    const token = await createToken();
+
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      ws.on("open", () => {
+        ws.send(
+          JSON.stringify({
+            channel: "unknown",
+            action: "send",
+          }),
+        );
+      });
+
+      ws.on("message", (raw) => {
+        const response = JSON.parse(raw.toString());
+
+        expect(response.success).toBe(false);
+        expect(response.message).toBe("Channel not found");
+
+        ws.close();
+        resolve();
+      });
+
+      ws.on("error", reject);
+    });
+  });
+
+  it("should reject unknown actions", async () => {
+    const token = await createToken();
+
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      ws.on("open", () => {
+        ws.send(
+          JSON.stringify({
+            channel: "chat",
+            action: "unknown",
+          }),
+        );
+      });
+
+      ws.on("message", (raw) => {
+        const response = JSON.parse(raw.toString());
+
+        expect(response.success).toBe(false);
+        expect(response.message).toBe("Action not found");
+
+        ws.close();
+        resolve();
+      });
+
+      ws.on("error", reject);
+    });
+  });
+
+  it("should reject invalid json", async () => {
+    const token = await createToken();
+
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      ws.on("open", () => {
+        ws.send("{invalid json");
+      });
+
+      ws.on("message", (raw) => {
+        const response = JSON.parse(raw.toString());
+
+        expect(response.success).toBe(false);
+        expect(response.message).toBe("Invalid JSON");
 
         ws.close();
         resolve();
@@ -108,7 +212,7 @@ describe("WebSocket", () => {
       });
 
       ws.on("open", () => {
-        reject(new Error("Connection should not be accepted"));
+        reject(new Error("Connection was accepted without authentication"));
       });
 
       ws.on("error", () => {
