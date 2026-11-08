@@ -24,10 +24,14 @@
     "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^10.14.0",
+    "extensionless": "^2.0.6",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "ws": "^8.22.1"
   }
 }
