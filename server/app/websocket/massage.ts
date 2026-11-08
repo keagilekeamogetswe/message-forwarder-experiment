@@ -1,7 +1,45 @@
 import { RawData, WebSocket } from "ws";
+import { ChannelRegistry } from "./channel";
+import { WSMessage } from "./types/ws.router";
 
-export function WSMessageEventHandler(data: RawData, ws: WebSocket) {
-  const message = data.toString();
+export async function WSMessageEventHandler(raw: RawData, ws: WebSocket) {
+  let data: WSMessage;
 
-  ws.send(message);
+  try {
+    data = JSON.parse(raw.toString());
+  } catch {
+    ws.send(
+      JSON.stringify({
+        success: false,
+        message: "Invalid JSON",
+      }),
+    );
+    return;
+  }
+
+  const channelEntry = ChannelRegistry[data.channel];
+
+  if (!channelEntry) {
+    ws.send(
+      JSON.stringify({
+        success: false,
+        message: "Channel not found",
+      }),
+    );
+    return;
+  }
+
+  const handler = channelEntry.actions[data.action];
+
+  if (!handler) {
+    ws.send(
+      JSON.stringify({
+        success: false,
+        message: "Action not found",
+      }),
+    );
+    return;
+  }
+
+  await handler(data, ws);
 }
