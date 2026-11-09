@@ -3,7 +3,7 @@ import { IncomingMessage } from "http";
 export interface WSMessage {
   channel: string;
   action: string;
-  payload?: unknown;
+  payload?: Record<string, unknown>;
 }
 
 export type IChannel = {
