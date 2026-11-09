@@ -19,4 +19,18 @@ const { publicKey, privateKey } = generateKeyPairSync("rsa", {
 process.env.JWT_ACCESS_TOKEN_PUBLIC_KEY = publicKey;
 process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY = privateKey;
 
-export default defineConfig({});
+export default defineConfig({
+  test: {
+    // Disable parallel execution of different test files
+    fileParallelism: false,
+
+    // Force Vitest to use a single worker thread/process
+    maxWorkers: 1,
+    minWorkers: 1,
+
+    // Run tests inside a single file sequentially (enabled by default)
+    sequence: {
+      concurrent: false,
+    },
+  },
+});
