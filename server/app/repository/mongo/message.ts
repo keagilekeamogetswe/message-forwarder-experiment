@@ -1,11 +1,11 @@
 import Database from "@/db";
 import { MessageStruct } from "@/model/message";
 import { ObjectId, UpdateFilter } from "mongodb";
+//Expose message collection to the this scope
+type MessageCollection =
+  "primary_messages" | "group_messages" | "room_messages";
 
 const MessageRepository = (() => {
-  type MessageCollection =
-    "primary_messages" | "group_messages" | "room_messages";
-
   type MessageFlagValue = string | number | boolean | null | Date;
 
   type MessageFlags = Record<string, MessageFlagValue>;
@@ -66,3 +66,8 @@ const MessageRepository = (() => {
 })();
 
 export default MessageRepository;
+export const COLLECTION_NAMES: Record<string, MessageCollection> = {
+  room: "room_messages",
+  primary: "primary_messages",
+  group: "group_messages",
+};
