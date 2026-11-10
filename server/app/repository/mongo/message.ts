@@ -15,11 +15,12 @@ const MessageRepository = (() => {
     async persistMessage(
       collection_name: MessageCollection,
       message: MessageStruct,
-    ): Promise<void> {
+    ): Promise<boolean> {
       const collection =
         await Database.getMongoCollection<MessageStruct>(collection_name);
 
-      await collection.insertOne(message);
+      const result = await collection.insertOne(message);
+      return result.acknowledged;
     },
     async readMessages(
       collection_name: MessageCollection,
