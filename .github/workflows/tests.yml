@@ -19,6 +19,7 @@ jobs:
         env:
           MONGO_INITDB_ROOT_USERNAME: admin
           MONGO_INITDB_ROOT_PASSWORD: secret
+          MONGO_INITDB_DATABASE: test_db
         # Health check to ensure MongoDB is fully ready to accept connections before tests start
         options: >-
           --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
