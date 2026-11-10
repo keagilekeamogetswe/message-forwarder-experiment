@@ -104,4 +104,145 @@ describe("MessageRepository", () => {
 
     expect(deletedCount).toBe(0);
   });
+  it("reads messages for a recipient", async () => {
+    const messageCollection =
+      await Database.getMongoCollection<MessageStruct>(collection);
+
+    await messageCollection.insertMany([
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-1",
+        recipient_id: "recipient-1",
+        caption: "message-1",
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-2",
+        recipient_id: "recipient-2",
+        caption: "message-2",
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+    ]);
+
+    const messages = await MessageRepository.readMessages(
+      collection,
+      "recipient-1",
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.recipient_id).toBe("recipient-1");
+    expect(messages[0]?.caption).toBe("message-1");
+  });
+
+  it("respects the limit parameter", async () => {
+    const messageCollection =
+      await Database.getMongoCollection<MessageStruct>(collection);
+
+    await messageCollection.insertMany([
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-1",
+        recipient_id: "recipient-1",
+        caption: "message-1",
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-2",
+        recipient_id: "recipient-1",
+        caption: "message-2",
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+    ]);
+
+    const messages = await MessageRepository.readMessages(
+      collection,
+      "recipient-1",
+      {},
+      1,
+    );
+
+    expect(messages).toHaveLength(1);
+  });
+
+  it("ignores flagged messages", async () => {
+    const messageCollection =
+      await Database.getMongoCollection<MessageStruct>(collection);
+
+    await messageCollection.insertMany([
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-1",
+        recipient_id: "recipient-1",
+        caption: "visible",
+        delivered: false,
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+      {
+        message_uuid: crypto.randomUUID(),
+        sender_id: "sender-2",
+        recipient_id: "recipient-1",
+        caption: "ignored",
+        delivered: true,
+        client_id: new Date().toISOString(),
+      } as MessageStruct,
+    ]);
+
+    const messages = await MessageRepository.readMessages(
+      collection,
+      "recipient-1",
+      {
+        delivered: true,
+      },
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.caption).toBe("visible");
+  });
+
+  it("returns messages after the offset id", async () => {
+    const messageCollection =
+      await Database.getMongoCollection<MessageStruct>(collection);
+
+    const first = await messageCollection.insertOne({
+      message_uuid: crypto.randomUUID(),
+      sender_id: "sender-1",
+      recipient_id: "recipient-1",
+      caption: "first",
+      client_id: new Date().toISOString(),
+    } as MessageStruct);
+
+    const second = await messageCollection.insertOne({
+      message_uuid: crypto.randomUUID(),
+      sender_id: "sender-2",
+      recipient_id: "recipient-1",
+      caption: "second",
+      client_id: new Date().toISOString(),
+    } as MessageStruct);
+
+    const messages = await MessageRepository.readMessages(
+      collection,
+      "recipient-1",
+      {},
+      0,
+      first.insertedId,
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(
+      (messages[0] as MessageStruct & { _id: ObjectId })._id.equals(
+        second.insertedId,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns an empty array when no messages exist", async () => {
+    const messages = await MessageRepository.readMessages(
+      collection,
+      "recipient-1",
+    );
+
+    expect(messages).toEqual([]);
+  });
 });
