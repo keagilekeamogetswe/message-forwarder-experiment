@@ -24,7 +24,7 @@ const MessageRepository = (() => {
     },
     async readMessages(
       collection_name: MessageCollection,
-      user_id: string | string[],
+      user_id: string | string[] | ObjectId[],
       ignore: MessageFlags = {},
       limit = 0,
       offset_id?: ObjectId | null,
