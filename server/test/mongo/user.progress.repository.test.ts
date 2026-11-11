@@ -108,4 +108,27 @@ describe("Testing the use cases in Group Progress", () => {
 
     expect(result).toBeNull();
   });
+  it("returns all groups for a user", async () => {
+    const user_id = "test-user";
+
+    const group1 = new ObjectId();
+    const group2 = new ObjectId();
+    const group3 = new ObjectId();
+
+    await GroupProgress.addGroup(user_id, group1);
+    await GroupProgress.addGroup(user_id, group2);
+    await GroupProgress.addGroup(user_id, group3);
+
+    const groups = await GroupProgress.getGroups(user_id);
+
+    expect(groups).toHaveLength(3);
+    expect(groups).toContainEqual(group1);
+    expect(groups).toContainEqual(group2);
+    expect(groups).toContainEqual(group3);
+  });
+  it("returns an empty array when user has no groups", async () => {
+    const groups = await GroupProgress.getGroups("missing-user");
+
+    expect(groups).toEqual([]);
+  });
 });

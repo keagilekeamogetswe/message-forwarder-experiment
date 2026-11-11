@@ -82,5 +82,21 @@ export const GroupProgress = (() => {
 
       return result.modifiedCount > 0 || result.upsertedCount > 0;
     },
+    async getGroups(user_id: string): Promise<ObjectId[]> {
+      const collection = await Database.getMongoCollection<UserGroupProgress>(
+        user_progress_collection,
+      );
+
+      const result = await collection.findOne(
+        { user_id },
+        {
+          projection: {
+            groups: 1,
+          },
+        },
+      );
+
+      return result?.groups ?? [];
+    },
   };
 })();
