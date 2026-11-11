@@ -68,9 +68,10 @@ describe("PrimaryMessageActions", () => {
       created_at: new Date().toISOString(),
     });
 
-    const result = await PrimaryMessageActions.acknowledgeMessages([
-      insertResult.insertedId,
-    ]);
+    const result = await PrimaryMessageActions.acknowledgeMessages(
+      "some user id",
+      [insertResult.insertedId],
+    );
 
     expect(result).toBe(1);
 
@@ -109,10 +110,10 @@ describe("PrimaryMessageActions", () => {
       created_at: new Date().toISOString(),
     });
 
-    const result = await PrimaryMessageActions.acknowledgeMessages([
-      insertA.insertedId,
-      insertB.insertedId,
-    ]);
+    const result = await PrimaryMessageActions.acknowledgeMessages(
+      "some user id",
+      [insertA.insertedId, insertB.insertedId],
+    );
 
     expect(result).toBe(2);
 
