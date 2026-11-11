@@ -131,4 +131,26 @@ describe("Testing the use cases in Group Progress", () => {
 
     expect(groups).toEqual([]);
   });
+  it("returns true when the user belongs to the group", async () => {
+    const user_id = "test-user";
+    const group_id = new ObjectId();
+
+    await GroupProgress.addGroup(user_id, group_id);
+
+    const result = await GroupProgress.hasGroup(user_id, group_id);
+
+    expect(result).toBe(true);
+  });
+  it("returns false when the user does not belong to the group", async () => {
+    const user_id = "test-user";
+
+    const member_group = new ObjectId();
+    const other_group = new ObjectId();
+
+    await GroupProgress.addGroup(user_id, member_group);
+
+    const result = await GroupProgress.hasGroup(user_id, other_group);
+
+    expect(result).toBe(false);
+  });
 });
