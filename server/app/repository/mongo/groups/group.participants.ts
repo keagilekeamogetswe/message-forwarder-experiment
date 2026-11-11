@@ -1,5 +1,6 @@
 import Database from "@/db";
 import { ObjectId } from "mongodb";
+import GroupRegistry from "./group.registry";
 
 export const GroupParticipants = (() => {
   const active_collection_name = "group_participants";
@@ -33,8 +34,11 @@ export const GroupParticipants = (() => {
           upsert: true,
         },
       );
+      const added = result.upsertedCount > 0 || result.modifiedCount > 0;
+      //Maintain group participant count
+      if (added) await GroupRegistry.incrementMemberCount(group_id);
 
-      return result.upsertedCount > 0 || result.modifiedCount > 0;
+      return added;
     },
 
     async removeUser(user_id: string, group_id: ObjectId): Promise<boolean> {
@@ -59,8 +63,11 @@ export const GroupParticipants = (() => {
         ...membership,
         left_at: new Date().toISOString(),
       });
+      const removed = archive_result.acknowledged;
 
-      return archive_result.acknowledged;
+      //Maintain group participant count
+      if (removed) await GroupRegistry.decrementMemberCount(group_id);
+      return removed;
     },
 
     async updateRole(
