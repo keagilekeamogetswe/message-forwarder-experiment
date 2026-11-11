@@ -98,5 +98,24 @@ export const GroupProgress = (() => {
 
       return result?.groups ?? [];
     },
+    async hasGroup(user_id: string, group_id: ObjectId): Promise<boolean> {
+      const collection = await Database.getMongoCollection<UserGroupProgress>(
+        user_progress_collection,
+      );
+
+      const result = await collection.findOne(
+        {
+          user_id,
+          groups: group_id,
+        },
+        {
+          projection: {
+            _id: 1,
+          },
+        },
+      );
+
+      return result !== null;
+    },
   };
 })();
