@@ -33,7 +33,7 @@ const MessageRepository = (() => {
         await Database.getMongoCollection<MessageStruct>(collection_name);
 
       const query: Filter<MessageStruct> = {
-        recipient_id: user_id,
+        recipient_id: Array.isArray(user_id) ? { $in: user_id } : user_id,
 
         ...(Object.keys(ignore).length > 0
           ? {
