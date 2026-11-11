@@ -54,38 +54,6 @@ const MessageRepository = (() => {
         .limit(limit)
         .toArray();
     },
-    async readMessages(
-      collection_name: MessageCollection,
-      user_id: string,
-      ignore: MessageFlags = {},
-      limit = 0,
-      offset_id?: ObjectId,
-    ): Promise<MessageStruct[]> {
-      const collection =
-        await Database.getMongoCollection<MessageStruct>(collection_name);
-
-      const query: Filter<MessageStruct> = {
-        recipient_id: user_id,
-
-        ...(Object.keys(ignore).length > 0
-          ? {
-              $nor: [ignore],
-            }
-          : {}),
-
-        ...(offset_id
-          ? {
-              _id: { $gt: offset_id },
-            }
-          : {}),
-      };
-
-      return await collection
-        .find(query)
-        .sort({ _id: 1 })
-        .limit(limit)
-        .toArray();
-    },
 
     async flagMessages(
       collection_name: MessageCollection,
