@@ -12,7 +12,7 @@ export const PrimaryMessageActions: MessageActions = (() => {
     persistMessage: (message: MessageStruct) =>
       MessageRepository.persistMessage(collection_name, message),
 
-    acknowledgeMessages: (message_ids: ObjectId[]) =>
+    acknowledgeMessages: (user_id: string, message_ids: ObjectId[]) =>
       MessageRepository.removeMessages(collection_name, message_ids),
 
     readMessages: (user_id: string) =>
