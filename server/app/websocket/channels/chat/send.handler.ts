@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { WSClient } from "@/websocket/types/ws.client";
 import type { WSMessage } from "@/websocket/types/ws.router";
 
-import { CreateMessageDelivery } from "@/websocket/message.forwarder";
+import { CreateMessageDelivery } from "@/websocket/services/message.forwarder";
 
 import {
   ClientInitialMessagePayload,
