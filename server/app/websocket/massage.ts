@@ -1,5 +1,5 @@
 import { RawData, WebSocket } from "ws";
-import { ChannelRegistry } from "./channel";
+import { ChannelRegistry } from "./services/channel";
 import { WSMessage } from "./types/ws.router";
 
 export async function WSMessageEventHandler(raw: RawData, ws: WebSocket) {
