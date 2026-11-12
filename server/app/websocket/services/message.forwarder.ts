@@ -20,7 +20,7 @@ type SideEffectCallback = () => void | Promise<void>;
  * @param onSuccess - Runs when ws.send() reports no error
  * @param onFailure - Runs when client is missing OR send fails. Optional, defaults to null.
  */
-export function CreateMessageForwarder(
+export function CreateMessageDelivery(
   userId: string,
   message: Record<string, unknown>,
   onSuccess: SideEffectCallback,
