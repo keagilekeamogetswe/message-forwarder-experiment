@@ -1,5 +1,5 @@
-import ChatSendEventHandler from "@/websocket/channels/chat/send.handler";
-import { IChannel } from "@/websocket/types/ws.router";
+import ChatSendEventHandler from "../channels/chat/send.handler";
+import { IChannel } from "../types/ws.router";
 
 export const ChannelRegistry: Record<string, IChannel> = {
   chat: {
