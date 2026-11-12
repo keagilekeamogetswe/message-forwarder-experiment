@@ -1,4 +1,4 @@
-import { ClientRegistry } from "./services/client.registry";
+import { ClientRegistry } from "./client.registry";
 
 // A callback that can be sync or async.
 // Used for side-effects like: save to DB, send push, update metrics.
