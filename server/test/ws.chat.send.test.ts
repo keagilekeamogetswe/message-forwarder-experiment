@@ -8,7 +8,6 @@ import {
   ClientInitialMessagePayload,
   DeliveredItem,
   MessageStruct,
-  SentItem,
 } from "@/model/message";
 
 let server: ChildProcess;
@@ -102,13 +101,9 @@ describe("WebSocket ping", () => {
 
       client_b.once("error", reject);
     });
-    let sentItemsFeedback: SentItem;
-
+    let delivery_message: DeliveredItem;
     client_a.on("message", (data) => {
-      const json_data = JSON.parse(data.toString());
-      sentItemsFeedback = (json_data.payload! as SentItem[])[0];
-      console.log("--------------", json_data);
-      console.log(sentItemsFeedback);
+      delivery_message = JSON.parse(data.toString()).payload;
     });
 
     client_a.send(
@@ -118,17 +113,14 @@ describe("WebSocket ping", () => {
         payload: message_payload,
       }),
     );
-    // wait for the
-    await new Promise((resolve) => {
-      setTimeout(resolve, 60);
-    });
 
     const message = await received_message;
+
     expect(message.caption).toBe(message_payload.caption);
     expect(message.recipient_id).toBe(client_b_id);
-    expect(sentItemsFeedback!).toBeDefined();
-    expect(sentItemsFeedback!.client_id).toBe(message_payload.client_id);
-    expect(sentItemsFeedback!.message_uuid).toBe(message!.message_uuid);
+    expect(delivery_message!.delivered_at).toBeDefined();
+    expect(delivery_message!.client_id).toBe(message_payload.client_id);
+    expect(delivery_message!.message_uuid).toBe(message!.message_uuid);
 
     client_a.close();
     client_a.close();
