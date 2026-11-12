@@ -107,8 +107,6 @@ describe("WebSocket ping", () => {
     client_a.on("message", (data) => {
       const json_data = JSON.parse(data.toString());
       sentItemsFeedback = (json_data.payload! as SentItem[])[0];
-      console.log("--------------", json_data);
-      console.log(sentItemsFeedback);
     });
 
     client_a.send(
