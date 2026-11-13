@@ -6,6 +6,14 @@ export type MessageEventType = "sent" | "delivered" | "read";
 export interface MessageEvent {
   _id?: ObjectId;
   user_id: string;
+  recipient_id: string;
+  type: MessageEventType;
+  message_uuid: string;
+  created_at: number;
+}
+export interface SendMessageEvent {
+  _id?: ObjectId;
+  user_id: string;
   type: MessageEventType;
   message_uuid: string;
   client_id?: string;
@@ -30,20 +38,24 @@ export const MessageEventsRepository = (() => {
   const collection_name = "message_events";
 
   const getCollection = () =>
-    Database.getMongoCollection<MessageEvent>(collection_name);
+    Database.getMongoCollection<MessageEvent | SendMessageEvent>(
+      collection_name,
+    );
 
   const persistEvents = async (
     type: Exclude<MessageEventType, "sent">,
     user_id: string,
     message_ids: string[],
+    recipient_id: string | null = null,
   ): Promise<boolean> => {
     if (!message_ids.length) return true;
-
+    if (!recipient_id) return false;
     const collection = await getCollection();
 
     const result = await collection.insertMany(
       message_ids.map((message_uuid) => ({
         user_id,
+        recipient_id,
         type,
         message_uuid,
         created_at: Date.now(),
@@ -124,14 +136,22 @@ export const MessageEventsRepository = (() => {
     },
 
     deliveredItems: {
-      async persist(user_id: string, message_ids: string[]): Promise<boolean> {
-        return persistEvents("delivered", user_id, message_ids);
+      async persist(
+        user_id: string,
+        message_ids: string[],
+        recipient_id: string,
+      ): Promise<boolean> {
+        return persistEvents("delivered", user_id, message_ids, recipient_id);
       },
     },
 
     readItems: {
-      async persist(user_id: string, message_ids: string[]): Promise<boolean> {
-        return persistEvents("read", user_id, message_ids);
+      async persist(
+        user_id: string,
+        message_ids: string[],
+        recipient_id: string,
+      ): Promise<boolean> {
+        return persistEvents("read", user_id, message_ids, recipient_id);
       },
     },
 
