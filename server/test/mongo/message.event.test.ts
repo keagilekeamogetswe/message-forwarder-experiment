@@ -36,13 +36,15 @@ describe("MessageEventsRepository", () => {
 
   it("should persist delivered items", async () => {
     const result = await MessageEventsRepository.deliveredItems.persist(
-      "user-1",
+      "message-sender",
       ["message-1", "message-2"],
+      "recipientr",
     );
 
     expect(result).toBe(true);
 
-    const events = await MessageEventsRepository.get("user-1");
+    const events = await MessageEventsRepository.get("message-sender");
+    console.log({ events });
 
     expect(events.sent_items).toHaveLength(0);
     expect(events.delivered_items).toHaveLength(2);
@@ -52,14 +54,15 @@ describe("MessageEventsRepository", () => {
   });
 
   it("should persist read items", async () => {
-    const result = await MessageEventsRepository.readItems.persist("user-1", [
-      "message-1",
-      "message-2",
-    ]);
+    const result = await MessageEventsRepository.readItems.persist(
+      "message-sender",
+      ["message-1", "message-2"],
+      "recipient",
+    );
 
     expect(result).toBe(true);
 
-    const events = await MessageEventsRepository.get("user-1");
+    const events = await MessageEventsRepository.get("message-sender");
 
     expect(events.sent_items).toHaveLength(0);
     expect(events.delivered_items).toHaveLength(0);
@@ -69,21 +72,27 @@ describe("MessageEventsRepository", () => {
   });
 
   it("should partition multiple event types correctly", async () => {
-    await MessageEventsRepository.sentItems.persist("user-1", [
+    const message_sender: string = "messsage-sender-1";
+    await MessageEventsRepository.sentItems.persist(message_sender, [
       {
         client_id: "client-1",
         message_uuid: "message-1",
       },
     ]);
 
-    await MessageEventsRepository.deliveredItems.persist("user-1", [
-      "message-2",
-      "message-3",
-    ]);
+    await MessageEventsRepository.deliveredItems.persist(
+      message_sender,
+      ["message-2", "message-3"],
+      "recipient",
+    );
 
-    await MessageEventsRepository.readItems.persist("user-1", ["message-4"]);
+    await MessageEventsRepository.readItems.persist(
+      message_sender,
+      ["message-4"],
+      "another-recipient",
+    );
 
-    const events = await MessageEventsRepository.get("user-1");
+    const events = await MessageEventsRepository.get(message_sender);
 
     expect(events.sent_items).toHaveLength(1);
     expect(events.delivered_items).toHaveLength(2);
@@ -98,7 +107,11 @@ describe("MessageEventsRepository", () => {
       },
     ]);
 
-    await MessageEventsRepository.readItems.persist("user-2", ["message-2"]);
+    await MessageEventsRepository.readItems.persist(
+      "user-2",
+      ["message-2"],
+      "user",
+    );
 
     const user1 = await MessageEventsRepository.get("user-1");
 
@@ -112,9 +125,11 @@ describe("MessageEventsRepository", () => {
   });
 
   it("should acknowledge single event", async () => {
-    await MessageEventsRepository.deliveredItems.persist("user-1", [
-      "message-1",
-    ]);
+    await MessageEventsRepository.deliveredItems.persist(
+      "user-1",
+      ["message-1"],
+      "recipient",
+    );
 
     const before = await MessageEventsRepository.get("user-1");
 
@@ -139,11 +154,17 @@ describe("MessageEventsRepository", () => {
       },
     ]);
 
-    await MessageEventsRepository.deliveredItems.persist("user-1", [
-      "message-2",
-    ]);
+    await MessageEventsRepository.deliveredItems.persist(
+      "user-1",
+      ["message-2"],
+      "recipient",
+    );
 
-    await MessageEventsRepository.readItems.persist("user-1", ["message-3"]);
+    await MessageEventsRepository.readItems.persist(
+      "user-1",
+      ["message-3"],
+      "recipient",
+    );
 
     const events = await MessageEventsRepository.get("user-1");
 
@@ -181,14 +202,14 @@ describe("MessageEventsRepository", () => {
   });
 
   it("should preserve insertion order", async () => {
-    await MessageEventsRepository.deliveredItems.persist("user-1", [
-      "message-1",
-      "message-2",
-      "message-3",
-    ]);
+    await MessageEventsRepository.deliveredItems.persist(
+      "user-1",
+      ["message-1", "message-2", "message-3"],
+      "recipient-1",
+    );
 
     const events = await MessageEventsRepository.get("user-1");
-
+    console.log(events);
     expect(events.delivered_items.map((item) => item.message_uuid)).toEqual([
       "message-1",
       "message-2",
