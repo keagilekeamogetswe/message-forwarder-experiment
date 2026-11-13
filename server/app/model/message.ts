@@ -17,7 +17,8 @@ export type SentItem = {
 };
 
 export type DeliveredItem = {
-  client_id: string;
+  sender_id: string;
+  recipient_id: string;
   message_uuid: string;
   delivered_at: string | null;
 };
