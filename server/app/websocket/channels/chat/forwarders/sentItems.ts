@@ -1,24 +1,21 @@
 import { CreateMessageForwarder } from "@/websocket/services/message.forwarder";
-import { ClientRegistry } from "@/websocket/services/client.registry";
 import { MessageEventsRepository } from "@/repository/mongo/message.items.event";
-import { MessageStruct, ReadItem, SentItem } from "@/model/message";
+import { MessageStruct, SentItem } from "@/model/message";
 
 export const SendItemForwarder = (
   sender_id: string,
   messages: MessageStruct[],
 ) => {
-  let message_id_list: string[] = [];
   const sent_items: SentItem[] = messages.map((sent_item) => {
     const client_id = sent_item.client_id;
     const sent_at = new Date().toISOString();
     const message_uuid = sent_item.message_uuid;
-    message_id_list.push(message_uuid);
     return { client_id, message_uuid, sent_at };
   });
   return CreateMessageForwarder(
-    sender_id, // The client we wish to inform
+    sender_id, // The author of the message to inform about the delivery
     {
-      channe: "chat",
+      channel: "chat",
       action: "sent_items",
       payload: sent_items,
     }, // The information we was to send
