@@ -10,12 +10,11 @@ import {
   type MessageStruct,
   type SentItem,
 } from "@/model/message";
-import { MessageEventsRepository } from "@/repository/mongo/message.items.event";
 import { SendItemForwarder } from "./forwarders/sentItems";
-import { MessageAction } from "@/actions/message/send.message";
+import { DeliveredItemForwarder } from "./forwarders/deliveredItems";
 import { PrimaryMessageActions } from "@/actions/message/primary.action";
 
-const ChatSendEventHandler = (data: WSMessage, ws: WSClient): void => {
+const ChatSendEventHandler = async (data: WSMessage, ws: WSClient): Promise<void> => {
   const message_uuid = randomUUID();
   const payload = data.payload as ClientInitialMessagePayload;
   const recipient_id = payload.recipient_id;
@@ -24,7 +23,7 @@ const ChatSendEventHandler = (data: WSMessage, ws: WSClient): void => {
     sender_id: ws.user.user_id,
     ...payload,
   };
-  const message_sent_feedback_dispatch: () => Promise<void> = SendItemForwarder(
+  const message_sent_feedback_dispatch = DeliveredItemForwarder(
     ws.user.user_id,
     [chat_message],
   );
@@ -32,16 +31,16 @@ const ChatSendEventHandler = (data: WSMessage, ws: WSClient): void => {
     recipient_id,
     chat_message,
     async () => {
-      message_sent_feedback_dispatch();
+      void message_sent_feedback_dispatch();
     },
     async () => {
       await PrimaryMessageActions.persistMessage(chat_message);
       // infor the that the message has been sent to the server
-      SendItemForwarder(chat_message.sender_id, [chat_message])();
+      void SendItemForwarder(chat_message.sender_id, [chat_message])();
     },
   );
 
-  sendToClient();
+  await sendToClient();
 };
 
 export default ChatSendEventHandler;
