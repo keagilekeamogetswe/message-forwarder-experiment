@@ -6,6 +6,7 @@ import {
 import { WSMessage } from "@/websocket/types/ws.router";
 import { WSClient } from "@/websocket/types/ws.client";
 import { ReadItemForwarder } from "./forwarders/readItems";
+import { ClientReadItemsPayload } from "@/model/message";
 
 export const MessageEventRetriveEventHandler = (
   sender_id: string,
@@ -48,16 +49,13 @@ export const MessageEventNotifySenderEventHandler = (
   sendToClient();
 };
 
-interface ReadItemsPayload {
-  sender_id: string;
-  message_ids: string[];
-}
-
 export const MessageReadItemsEventHandler = async (
-  message: WSMessage,
+  data: WSMessage,
   ws: WSClient,
 ): Promise<void> => {
-  const payload = message.payload as Partial<ReadItemsPayload> | undefined;
+  const payload = data.payload as
+    | Partial<ClientReadItemsPayload>
+    | undefined;
   if (
     !payload ||
     typeof payload.sender_id !== "string" ||
