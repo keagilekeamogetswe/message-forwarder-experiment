@@ -7,31 +7,36 @@ export interface MessageEvent {
   _id?: ObjectId;
   user_id: string;
   recipient_id: string;
-  type: MessageEventType;
-  message_uuid: string;
-  created_at: number;
-}
-export interface SendMessageEvent {
-  _id?: ObjectId;
-  user_id: string;
-  type: MessageEventType;
+  type: Exclude<MessageEventType, "sent">;
   message_uuid: string;
   client_id?: string;
   created_at: number;
 }
 
+export interface SendMessageEvent {
+  _id?: ObjectId;
+  user_id: string;
+  type: "sent";
+  message_uuid: string;
+  client_id?: string; // the id which the client locally generates and assigns to the mess
+  created_at: number;
+}
+
+export interface ReceiptEvent {
+  recipient_id: string;
+  message_uuid: string;
+  client_id?: string;
+}
+
+export interface SentEvent {
+  client_id?: string;
+  message_uuid: string;
+}
+
 export interface MessageEventsPartition {
-  sent_items: (MessageEvent & {
-    _id: ObjectId;
-  })[];
-
-  delivered_items: (MessageEvent & {
-    _id: ObjectId;
-  })[];
-
-  read_items: (MessageEvent & {
-    _id: ObjectId;
-  })[];
+  sent_items: SentEvent[];
+  delivered_items: ReceiptEvent[];
+  read_items: ReceiptEvent[];
 }
 
 export const MessageEventsRepository = (() => {
@@ -47,17 +52,20 @@ export const MessageEventsRepository = (() => {
     user_id: string,
     message_ids: string[],
     recipient_id: string | null = null,
+    client_ids: (string | undefined)[] = [],
   ): Promise<boolean> => {
     if (!message_ids.length) return true;
     if (!recipient_id) return false;
+
     const collection = await getCollection();
 
     const result = await collection.insertMany(
-      message_ids.map((message_uuid) => ({
+      message_ids.map((message_uuid, index) => ({
         user_id,
         recipient_id,
         type,
         message_uuid,
+        ...(client_ids[index] ? { client_id: client_ids[index] } : {}),
         created_at: Date.now(),
       })),
     );
@@ -71,7 +79,7 @@ export const MessageEventsRepository = (() => {
   ): Promise<MessageEventsPartition> => {
     const collection = await getCollection();
 
-    const events = (await collection
+    const events = await collection
       .find({
         user_id,
       })
@@ -79,9 +87,7 @@ export const MessageEventsRepository = (() => {
         _id: 1,
       })
       .limit(limit)
-      .toArray()) as (MessageEvent & {
-      _id: ObjectId;
-    })[];
+      .toArray();
 
     const result: MessageEventsPartition = {
       sent_items: [],
@@ -92,15 +98,25 @@ export const MessageEventsRepository = (() => {
     for (const event of events) {
       switch (event.type) {
         case "sent":
-          result.sent_items.push(event);
+          result.sent_items.push({
+            client_id: event.client_id,
+            message_uuid: event.message_uuid,
+          });
           break;
 
         case "delivered":
-          result.delivered_items.push(event);
+          result.delivered_items.push({
+            recipient_id: event.recipient_id,
+            message_uuid: event.message_uuid,
+            ...(event.client_id ? { client_id: event.client_id } : {}),
+          });
           break;
 
         case "read":
-          result.read_items.push(event);
+          result.read_items.push({
+            recipient_id: event.recipient_id,
+            message_uuid: event.message_uuid,
+          });
           break;
       }
     }
@@ -140,8 +156,9 @@ export const MessageEventsRepository = (() => {
         user_id: string,
         message_ids: string[],
         recipient_id: string,
+        client_ids?: (string | undefined)[],
       ): Promise<boolean> {
-        return persistEvents("delivered", user_id, message_ids, recipient_id);
+        return persistEvents("delivered", user_id, message_ids, recipient_id, client_ids);
       },
     },
 
@@ -170,7 +187,19 @@ export const MessageEventsRepository = (() => {
         },
       });
 
-      return result.deletedCount > 0;
+      return result.deletedCount === event_ids.length;
+    },
+
+    async acknowledgePartition(user_id: string, partition: MessageEventsPartition): Promise<void> {
+      const collection = await getCollection();
+      const filters = [
+        ...partition.sent_items.map((item) => ({ type: "sent", message_uuid: item.message_uuid, client_id: item.client_id })),
+        ...partition.delivered_items.map((item) => ({ type: "delivered", message_uuid: item.message_uuid, recipient_id: item.recipient_id, client_id: item.client_id })),
+        ...partition.read_items.map((item) => ({ type: "read", message_uuid: item.message_uuid, recipient_id: item.recipient_id })),
+      ];
+      for (const filter of filters) {
+        await collection.deleteOne({ user_id, ...filter } as any);
+      }
     },
   };
 })();
