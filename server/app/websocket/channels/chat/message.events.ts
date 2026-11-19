@@ -3,6 +3,9 @@ import {
   MessageEventsPartition,
   MessageEventsRepository,
 } from "@/repository/mongo/message.items.event";
+import { WSMessage } from "@/websocket/types/ws.router";
+import { WSClient } from "@/websocket/types/ws.client";
+import { ReadItemForwarder } from "./forwarders/readItems";
 
 export const MessageEventRetriveEventHandler = (
   sender_id: string,
@@ -16,7 +19,8 @@ export const MessageEventRetriveEventHandler = (
   const sendToClient = CreateMessageForwarder(
     sender_id, // The client we wish to inform
     data, // The information we was to send
-    async () => MessageEventsRepository.acknowledgePartition(sender_id, partitions),
+    async () =>
+      MessageEventsRepository.acknowledgePartition(sender_id, partitions),
     () => console.log("Client failed to send message"),
   );
   sendToClient();
@@ -42,4 +46,36 @@ export const MessageEventNotifySenderEventHandler = (
     () => console.log("Client failed to send message"),
   );
   sendToClient();
+};
+
+interface ReadItemsPayload {
+  sender_id: string;
+  message_ids: string[];
+}
+
+export const MessageReadItemsEventHandler = async (
+  message: WSMessage,
+  ws: WSClient,
+): Promise<void> => {
+  const payload = message.payload as Partial<ReadItemsPayload> | undefined;
+  if (
+    !payload ||
+    typeof payload.sender_id !== "string" ||
+    !Array.isArray(payload.message_ids) ||
+    payload.message_ids.length === 0 ||
+    !payload.message_ids.every((message_id) => typeof message_id === "string")
+  ) {
+    await CreateMessageForwarder(
+      ws.user.user_id,
+      { success: false, message: "Invalid read_items payload" },
+      () => undefined,
+    )();
+    return;
+  }
+
+  await ReadItemForwarder(
+    payload.sender_id,
+    ws.user.user_id,
+    payload.message_ids,
+  )();
 };
