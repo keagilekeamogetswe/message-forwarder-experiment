@@ -20,6 +20,7 @@ describe("MessageRepository", () => {
       sender_id: "sender-1",
       recipient_id: "recipient-1",
       caption: "hello",
+      media_uploads: [],
       client_id: new Date().toISOString(),
     };
 
@@ -39,13 +40,14 @@ describe("MessageRepository", () => {
 
   it("flags messages", async () => {
     const messageCollection =
-      await Database.getMongoCollection<MessageStruct>(collection);
+      await Database.getMongoCollection<MessageStruct & { delivered?: boolean }>(collection);
 
     const result = await messageCollection.insertOne({
       message_uuid: crypto.randomUUID(),
       sender_id: "sender-1",
       recipient_id: "recipient-1",
       caption: "hello",
+      media_uploads: [],
       client_id: new Date().toISOString(),
     } as MessageStruct);
 
@@ -75,6 +77,7 @@ describe("MessageRepository", () => {
       sender_id: "sender-1",
       recipient_id: "recipient-1",
       caption: "hello",
+      media_uploads: [],
       client_id: new Date().toISOString(),
     } as MessageStruct);
 
@@ -114,6 +117,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-1",
         recipient_id: "recipient-1",
         caption: "message-1",
+        media_uploads: [],
         client_id: new Date().toISOString(),
       } as MessageStruct,
       {
@@ -121,6 +125,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-2",
         recipient_id: "recipient-2",
         caption: "message-2",
+        media_uploads: [],
         client_id: new Date().toISOString(),
       } as MessageStruct,
     ]);
@@ -145,6 +150,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-1",
         recipient_id: "recipient-1",
         caption: "message-1",
+        media_uploads: [],
         client_id: new Date().toISOString(),
       } as MessageStruct,
       {
@@ -152,6 +158,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-2",
         recipient_id: "recipient-1",
         caption: "message-2",
+        media_uploads: [],
         client_id: new Date().toISOString(),
       } as MessageStruct,
     ]);
@@ -176,6 +183,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-1",
         recipient_id: "recipient-1",
         caption: "visible",
+        media_uploads: [],
         delivered: false,
         client_id: new Date().toISOString(),
       } as MessageStruct,
@@ -184,6 +192,7 @@ describe("MessageRepository", () => {
         sender_id: "sender-2",
         recipient_id: "recipient-1",
         caption: "ignored",
+        media_uploads: [],
         delivered: true,
         client_id: new Date().toISOString(),
       } as MessageStruct,
@@ -210,6 +219,7 @@ describe("MessageRepository", () => {
       sender_id: "sender-1",
       recipient_id: "recipient-1",
       caption: "first",
+      media_uploads: [],
       client_id: new Date().toISOString(),
     } as MessageStruct);
 
@@ -218,6 +228,7 @@ describe("MessageRepository", () => {
       sender_id: "sender-2",
       recipient_id: "recipient-1",
       caption: "second",
+      media_uploads: [],
       client_id: new Date().toISOString(),
     } as MessageStruct);
 
