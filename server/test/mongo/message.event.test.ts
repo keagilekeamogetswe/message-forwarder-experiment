@@ -30,8 +30,8 @@ describe("MessageEventsRepository", () => {
     expect(events.delivered_items).toHaveLength(0);
     expect(events.read_items).toHaveLength(0);
 
-    expect(events.sent_items[0].type).toBe("sent");
-    expect(events.sent_items[1].type).toBe("sent");
+    expect(events.sent_items[0].client_id).toBe("client-1");
+    expect(events.sent_items[1].client_id).toBe("client-2");
   });
 
   it("should persist delivered items", async () => {
@@ -50,7 +50,7 @@ describe("MessageEventsRepository", () => {
     expect(events.delivered_items).toHaveLength(2);
     expect(events.read_items).toHaveLength(0);
 
-    expect(events.delivered_items[0].type).toBe("delivered");
+    expect(events.delivered_items[0].recipient_id).toBe("recipientr");
   });
 
   it("should persist read items", async () => {
@@ -68,7 +68,7 @@ describe("MessageEventsRepository", () => {
     expect(events.delivered_items).toHaveLength(0);
     expect(events.read_items).toHaveLength(2);
 
-    expect(events.read_items[0].type).toBe("read");
+    expect(events.read_items[0].recipient_id).toBe("recipient");
   });
 
   it("should partition multiple event types correctly", async () => {
@@ -135,11 +135,7 @@ describe("MessageEventsRepository", () => {
 
     expect(before.delivered_items).toHaveLength(1);
 
-    const result = await MessageEventsRepository.acknowledge([
-      before.delivered_items[0]._id,
-    ]);
-
-    expect(result).toBe(true);
+    await MessageEventsRepository.acknowledgePartition("user-1", before);
 
     const after = await MessageEventsRepository.get("user-1");
 
@@ -168,15 +164,7 @@ describe("MessageEventsRepository", () => {
 
     const events = await MessageEventsRepository.get("user-1");
 
-    const ids = [
-      ...events.sent_items.map((event) => event._id),
-      ...events.delivered_items.map((event) => event._id),
-      ...events.read_items.map((event) => event._id),
-    ];
-
-    const result = await MessageEventsRepository.acknowledge(ids);
-
-    expect(result).toBe(true);
+    await MessageEventsRepository.acknowledgePartition("user-1", events);
 
     const remaining = await MessageEventsRepository.get("user-1");
 
