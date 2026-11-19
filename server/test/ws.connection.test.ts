@@ -50,6 +50,23 @@ async function createToken() {
   );
 }
 
+function waitForErrorResponse(ws: WebSocket, expectedMessage: string) {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(`Timed out waiting for ${expectedMessage}`)),
+      3000,
+    );
+    ws.on("message", (data) => {
+      const response = JSON.parse(data.toString());
+      if (response.success === false && response.message === expectedMessage) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+    ws.once("error", reject);
+  });
+}
+
 describe("WebSocket", () => {
   it("should connect successfully", async () => {
     const token = await createToken();
@@ -79,6 +96,7 @@ describe("WebSocket", () => {
           Authorization: `Bearer ${token}`,
         },
       });
+      const response = waitForErrorResponse(ws, "Channel not found");
 
       ws.once("open", () => {
         ws.send(
@@ -89,14 +107,10 @@ describe("WebSocket", () => {
         );
       });
 
-      ws.once("message", (data) => {
-        const response = JSON.parse(data.toString());
-
-        expect(response.success).toBe(false);
-
+      response.then(() => {
         ws.close();
         resolve();
-      });
+      }, reject);
 
       ws.once("error", reject);
     });
@@ -111,6 +125,7 @@ describe("WebSocket", () => {
           Authorization: `Bearer ${token}`,
         },
       });
+      const response = waitForErrorResponse(ws, "Action not found");
 
       ws.once("open", () => {
         ws.send(
@@ -121,14 +136,10 @@ describe("WebSocket", () => {
         );
       });
 
-      ws.once("message", (data) => {
-        const response = JSON.parse(data.toString());
-
-        expect(response.success).toBe(false);
-
+      response.then(() => {
         ws.close();
         resolve();
-      });
+      }, reject);
 
       ws.once("error", reject);
     });
@@ -143,19 +154,16 @@ describe("WebSocket", () => {
           Authorization: `Bearer ${token}`,
         },
       });
+      const response = waitForErrorResponse(ws, "Invalid JSON");
 
       ws.once("open", () => {
         ws.send("{invalid json");
       });
 
-      ws.once("message", (data) => {
-        const response = JSON.parse(data.toString());
-
-        expect(response.success).toBe(false);
-
+      response.then(() => {
         ws.close();
         resolve();
-      });
+      }, reject);
 
       ws.once("error", reject);
     });
