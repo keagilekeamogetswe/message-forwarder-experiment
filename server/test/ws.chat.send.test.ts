@@ -4,12 +4,8 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import jwt from "../../utility/jwt";
-import {
-  ClientInitialMessagePayload,
-  DeliveredItem,
-  MessageStruct,
-  SentItem,
-} from "@/model/message";
+import Database from "@/db";
+import { DeliveredItem, MessageStruct, SentItem } from "@/model/message";
 
 let server: ChildProcess;
 
@@ -19,6 +15,9 @@ const __dirname = path.dirname(__filename);
 const serverPath = path.resolve(__dirname, "../app/index.ts");
 
 beforeAll(async () => {
+  const messages = await Database.getMongoCollection("primary_messages");
+  await messages.deleteMany({});
+
   server = fork(serverPath, [], {
     env: {
       ...process.env,
@@ -53,6 +52,26 @@ async function createToken(user_id = "123") {
   );
 }
 
+function waitForConnectionReady(client: WebSocket): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("connection readiness timeout")),
+      5000,
+    );
+    client.on("message", (data) => {
+      const response = JSON.parse(data.toString());
+      if (
+        response.channel === "message_events" &&
+        response.action === "retrive"
+      ) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+    client.once("error", reject);
+  });
+}
+
 describe("WebSocket ping", () => {
   it("delivers message to recipient", async () => {
     const client_a_id = "A as Identified";
@@ -80,21 +99,38 @@ describe("WebSocket ping", () => {
       },
     });
 
+    const client_a_ready = waitForConnectionReady(client_a);
+    const client_a_open = new Promise<void>((resolve, reject) => {
+      client_a.once("open", resolve);
+      client_a.once("error", reject);
+    });
+    const client_b_ready = waitForConnectionReady(client_b);
+    const client_b_open = new Promise<void>((resolve, reject) => {
+      client_b.once("open", resolve);
+      client_b.once("error", reject);
+    });
     await Promise.all([
-      new Promise<void>((resolve, reject) => {
-        client_a.once("open", resolve);
-        client_a.once("error", reject);
-      }),
-      new Promise<void>((resolve, reject) => {
-        client_b.once("open", resolve);
-        client_b.once("error", reject);
-      }),
+      client_a_open,
+      client_a_ready,
+      client_b_open,
+      client_b_ready,
     ]);
 
     const received_message = new Promise<MessageStruct>((resolve, reject) => {
-      client_b.once("message", (data) => {
+      const timeout = setTimeout(
+        () => reject(new Error("message delivery timeout")),
+        3000,
+      );
+      client_b.on("message", (data) => {
         try {
-          resolve(JSON.parse(data.toString()));
+          const response = JSON.parse(data.toString());
+          if (
+            response.message_uuid &&
+            response.caption === message_payload.caption
+          ) {
+            clearTimeout(timeout);
+            resolve(response);
+          }
         } catch (error) {
           reject(error);
         }
@@ -102,13 +138,22 @@ describe("WebSocket ping", () => {
 
       client_b.once("error", reject);
     });
-    let sentItemsFeedback: SentItem;
-
-    client_a.on("message", (data) => {
-      const json_data = JSON.parse(data.toString());
-      sentItemsFeedback = (json_data.payload! as SentItem[])[0];
-      console.log("--------------", json_data);
-      console.log(sentItemsFeedback);
+    const delivered_feedback = new Promise<DeliveredItem>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("delivery feedback timeout")),
+        3000,
+      );
+      client_a.on("message", (data) => {
+        const response = JSON.parse(data.toString());
+        if (
+          response.channel === "chat" &&
+          response.action === "delivered_items"
+        ) {
+          clearTimeout(timeout);
+          resolve(response.payload[0]);
+        }
+      });
+      client_a.once("error", reject);
     });
 
     client_a.send(
@@ -118,17 +163,12 @@ describe("WebSocket ping", () => {
         payload: message_payload,
       }),
     );
-    // wait for the
-    await new Promise((resolve) => {
-      setTimeout(resolve, 60);
-    });
-
     const message = await received_message;
+    const delivered = await delivered_feedback;
     expect(message.caption).toBe(message_payload.caption);
     expect(message.recipient_id).toBe(client_b_id);
-    expect(sentItemsFeedback!).toBeDefined();
-    expect(sentItemsFeedback!.client_id).toBe(message_payload.client_id);
-    expect(sentItemsFeedback!.message_uuid).toBe(message!.message_uuid);
+    expect(delivered.client_id).toBe(message_payload.client_id);
+    expect(delivered.message_uuid).toBe(message.message_uuid);
 
     client_a.close();
     client_a.close();
@@ -137,7 +177,7 @@ describe("WebSocket ping", () => {
   });
   it("handles recipient offline", async () => {
     const client_a_id = "A as Identified";
-    const offline_user_id = "offline-user";
+    const offline_user_id = `offline-user-${crypto.randomUUID()}`;
 
     const client_a_token = await createToken(client_a_id);
 
@@ -154,19 +194,26 @@ describe("WebSocket ping", () => {
       },
     });
 
+    const client_a_ready = waitForConnectionReady(client_a);
     await new Promise<void>((resolve, reject) => {
       client_a.once("open", resolve);
       client_a.once("error", reject);
     });
+    await client_a_ready;
 
-    let receivedDelivery = false;
-
-    client_a.on("message", (data) => {
-      const message = JSON.parse(data.toString());
-
-      if (message.channel === "chat" && message.action === "delivery") {
-        receivedDelivery = true;
-      }
+    const sent_feedback = new Promise<SentItem>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("sent feedback timeout")),
+        3000,
+      );
+      client_a.on("message", (data) => {
+        const response = JSON.parse(data.toString());
+        if (response.channel === "chat" && response.action === "sent_items") {
+          clearTimeout(timeout);
+          resolve(response.payload[0]);
+        }
+      });
+      client_a.once("error", reject);
     });
 
     client_a.send(
@@ -177,11 +224,62 @@ describe("WebSocket ping", () => {
       }),
     );
 
-    // Giving the server a moment to process
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const sent = await sent_feedback;
+    expect(sent.client_id).toBe(message_payload.client_id);
+    expect(sent.message_uuid).toBeDefined();
 
-    expect(receivedDelivery).toBe(false);
+    const recipient_token = await createToken(offline_user_id);
+    const recipient = new WebSocket("ws://127.0.0.1:3000/ws", {
+      headers: { Authorization: `Bearer ${recipient_token}` },
+    });
+    const recipient_ready = waitForConnectionReady(recipient);
+    await new Promise<void>((resolve, reject) => {
+      recipient.once("open", resolve);
+      recipient.once("error", reject);
+    });
+    await recipient_ready;
 
+    const queued_message = new Promise<MessageStruct>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("queued message timeout")),
+        3000,
+      );
+      recipient.on("message", (data) => {
+        const response = JSON.parse(data.toString());
+        if (response.message_uuid === sent.message_uuid) {
+          clearTimeout(timeout);
+          resolve(response);
+        }
+      });
+      recipient.once("error", reject);
+    });
+    const delivered_after_reconnect = new Promise<DeliveredItem>(
+      (resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("delivery feedback timeout")),
+          3000,
+        );
+        client_a.on("message", (data) => {
+          const response = JSON.parse(data.toString());
+          if (
+            response.action === "delivered_items" &&
+            response.payload[0].message_uuid === sent.message_uuid
+          ) {
+            clearTimeout(timeout);
+            resolve(response.payload[0]);
+          }
+        });
+        client_a.once("error", reject);
+      },
+    );
+
+    const received = await queued_message;
+    const delivered = await delivered_after_reconnect;
+    expect(received.client_id).toBe(message_payload.client_id);
+    expect(delivered.client_id).toBe(message_payload.client_id);
+    expect(delivered.message_uuid).toBe(sent.message_uuid);
+
+    recipient.close();
     client_a.close();
   });
 }, 20000);
