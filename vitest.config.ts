@@ -29,7 +29,6 @@ export default defineConfig({
 
     // Force Vitest to use a single worker thread/process
     maxWorkers: 1,
-    minWorkers: 1,
 
     // Run tests inside a single file sequentially (enabled by default)
     sequence: {
