@@ -5,6 +5,11 @@ export type ClientInitialMessagePayload = {
   client_id: string;
 };
 
+export type ClientReadItemsPayload = {
+  sender_id: string;
+  message_ids: string[];
+};
+
 export type MessageStruct = ClientInitialMessagePayload & {
   message_uuid: string;
   sender_id: string;
@@ -25,6 +30,7 @@ export type DeliveredItem = {
 };
 
 export type ReadItem = {
+  recipient_id: string;
   message_uuid: string;
   read_at: string | null;
 };

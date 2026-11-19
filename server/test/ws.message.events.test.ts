@@ -120,4 +120,107 @@ describe("Message evnets testing", () => {
     expect(currect_events.delivered_items).toHaveLength(0);
     ws_client_author.close();
   }, 20000);
+
+  it("forwards explicit read_items messages to the original sender", async () => {
+    const sender_id = `read-sender-${crypto.randomUUID()}`;
+    const reader_id = `read-recipient-${crypto.randomUUID()}`;
+    const message_uuid = crypto.randomUUID();
+
+    const connectReady = async (user_id: string): Promise<WebSocket> => {
+      const token = await createToken(user_id);
+      const client = new WebSocket("ws://127.0.0.1:3000/ws", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const ready = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("connection readiness timeout")),
+          5000,
+        );
+        client.on("message", (data) => {
+          const event = JSON.parse(data.toString()) as WSMessage;
+          if (event.channel === "message_events" && event.action === "retrive") {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+        client.once("error", reject);
+      });
+      await Promise.all([
+        new Promise<void>((resolve, reject) => {
+          client.once("open", resolve);
+          client.once("error", reject);
+        }),
+        ready,
+      ]);
+      return client;
+    };
+
+    const sender = await connectReady(sender_id);
+    const reader = await connectReady(reader_id);
+    const read_feedback = new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("read_items feedback timeout")),
+        3000,
+      );
+      sender.on("message", (data) => {
+        const event = JSON.parse(data.toString());
+        if (
+          event.channel === "chat" &&
+          event.action === "read_items" &&
+          event.payload?.[0]?.message_uuid === message_uuid
+        ) {
+          clearTimeout(timeout);
+          resolve(event.payload[0]);
+        }
+      });
+      sender.once("error", reject);
+    });
+
+    reader.send(
+      JSON.stringify({
+        channel: "message_event",
+        action: "read_items",
+        payload: {
+          sender_id,
+          message_ids: [message_uuid],
+        },
+      }),
+    );
+
+    const feedback = await read_feedback;
+    expect(feedback.recipient_id).toBe(reader_id);
+    expect(feedback.message_uuid).toBe(message_uuid);
+    expect(feedback.read_at).toBeDefined();
+
+    const offline_sender_id = `offline-read-sender-${crypto.randomUUID()}`;
+    const offline_message_uuid = crypto.randomUUID();
+    reader.send(
+      JSON.stringify({
+        channel: "message_event",
+        action: "read_items",
+        payload: {
+          sender_id: offline_sender_id,
+          message_ids: [offline_message_uuid],
+        },
+      }),
+    );
+
+    let offline_sender_events = await MessageEventsRepository.get(offline_sender_id);
+    const persistence_deadline = Date.now() + 3000;
+    while (
+      !offline_sender_events.read_items.length &&
+      Date.now() < persistence_deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      offline_sender_events = await MessageEventsRepository.get(offline_sender_id);
+    }
+    expect(offline_sender_events.read_items).toHaveLength(1);
+    expect(offline_sender_events.read_items[0]).toMatchObject({
+      recipient_id: reader_id,
+      message_uuid: offline_message_uuid,
+    });
+
+    sender.close();
+    reader.close();
+  }, 20000);
 }, 20000);
