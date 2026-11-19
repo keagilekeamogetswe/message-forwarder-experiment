@@ -25,6 +25,7 @@ export type DeliveredItem = {
 };
 
 export type ReadItem = {
+  recipient_id: string;
   message_uuid: string;
   read_at: string | null;
 };
