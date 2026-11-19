@@ -1,5 +1,5 @@
-import { WebSocket } from "ws";
 import { IncomingMessage } from "http";
+import { WSClient } from "./ws.client";
 export interface WSMessage {
   channel: string;
   action: string;
@@ -12,5 +12,5 @@ export type IChannel = {
 
 export type MessageHandler = (
   message: WSMessage,
-  ws: WebSocket,
+  ws: WSClient,
 ) => void | Promise<void>;
