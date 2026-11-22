@@ -18,6 +18,7 @@ export default (() => {
       payload: UserPayload,
       exp: string,
       privateKey: string,
+      jti?: string | null,
     ): Promise<string> {
       const key = await jose.importPKCS8(privateKey, "RS256");
 
@@ -26,7 +27,7 @@ export default (() => {
           alg: "RS256",
         })
         .setIssuedAt()
-        .setJti(crypto.randomUUID())
+        .setJti(jti ?? crypto.randomUUID())
         .setExpirationTime(exp)
         .sign(key);
     },
