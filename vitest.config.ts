@@ -1,9 +1,13 @@
 import { defineConfig } from "vitest/config";
 import dotenv from "dotenv";
 import { generateKeyPairSync } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-dotenv.config({ path: ".test.env" });
+dotenv.config({
+  path: fileURLToPath(new URL(".test.env", import.meta.url)),
+  override: true,
+});
 
 const { publicKey, privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
