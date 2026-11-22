@@ -1,43 +1,21 @@
-import { fork, ChildProcess } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { WebSocket } from "ws";
 
 import jwt from "../../utility/jwt";
+import {
+  startWebSocketTestServer,
+  stopWebSocketTestServer,
+} from "./ws.test.helpers";
 
-let server: ChildProcess;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const serverPath = path.resolve(__dirname, "../app/index.ts");
+let server: Awaited<ReturnType<typeof startWebSocketTestServer>>;
 
 beforeAll(async () => {
-  server = fork(serverPath, [], {
-    env: {
-      ...process.env,
-      HTTP_PORT: "3000",
-    },
-    stdio: "inherit",
-    execArgv: ["--import=tsx", "--import=extensionless/register"],
-  });
+  server = await startWebSocketTestServer();
+}, 25_000);
 
-  server.on("error", console.error);
-
-  server.on("exit", (code) => {
-    console.log("server exited:", code);
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-});
-
-afterAll(() => {
-  if (!server.killed) {
-    server.kill("SIGTERM");
-  }
+afterAll(async () => {
+  await stopWebSocketTestServer(server);
 });
 
 async function createToken() {
@@ -73,9 +51,7 @@ describe("WebSocket", () => {
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       ws.on("open", () => {
@@ -92,9 +68,7 @@ describe("WebSocket", () => {
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const response = waitForErrorResponse(ws, "Channel not found");
 
@@ -121,9 +95,7 @@ describe("WebSocket", () => {
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const response = waitForErrorResponse(ws, "Action not found");
 
@@ -150,9 +122,7 @@ describe("WebSocket", () => {
 
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket("ws://127.0.0.1:3000/ws", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const response = waitForErrorResponse(ws, "Invalid JSON");
 
