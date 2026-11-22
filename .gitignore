@@ -1,1 +1,3 @@
 **/node_modules/
+server/app/config/tls/certs/
+frontend/.env.local
