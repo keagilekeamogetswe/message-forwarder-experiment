@@ -14,7 +14,10 @@ import { SendItemForwarder } from "./forwarders/sentItems";
 import { DeliveredItemForwarder } from "./forwarders/deliveredItems";
 import { PrimaryMessageActions } from "@/actions/message/primary.action";
 
-const ChatSendEventHandler = async (data: WSMessage, ws: WSClient): Promise<void> => {
+const ChatSendEventHandler = async (
+  data: WSMessage,
+  ws: WSClient,
+): Promise<void> => {
   const message_uuid = randomUUID();
   const payload = data.payload as ClientInitialMessagePayload;
   const recipient_id = payload.recipient_id;
@@ -35,7 +38,7 @@ const ChatSendEventHandler = async (data: WSMessage, ws: WSClient): Promise<void
     },
     async () => {
       await PrimaryMessageActions.persistMessage(chat_message);
-      // infor the that the message has been sent to the server
+      // infor the that the message haxs been sent to the server
       void SendItemForwarder(chat_message.sender_id, [chat_message])();
     },
   );
