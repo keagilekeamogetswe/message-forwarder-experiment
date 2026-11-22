@@ -1,55 +1,36 @@
-import { fork, ChildProcess } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import jwt from "../../utility/jwt";
 import Database from "@/db";
 import { DeliveredItem, MessageStruct, SentItem } from "@/model/message";
+import {
+  startWebSocketTestServer,
+  stopWebSocketTestServer,
+} from "./ws.test.helpers";
 
-let server: ChildProcess;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const serverPath = path.resolve(__dirname, "../app/index.ts");
+let server: Awaited<ReturnType<typeof startWebSocketTestServer>>;
 
 beforeAll(async () => {
   const messages = await Database.getMongoCollection("primary_messages");
   await messages.deleteMany({});
 
-  server = fork(serverPath, [], {
-    env: {
-      ...process.env,
-      HTTP_PORT: "3000",
-    },
-    stdio: "inherit",
-    execArgv: ["--import=tsx", "--import=extensionless/register"],
-  });
+  server = await startWebSocketTestServer();
+}, 25_000);
 
-  server.on("error", console.error);
-
-  server.on("exit", (code) => {
-    console.log("server exited:", code);
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-});
-
-afterAll(() => {
-  if (!server.killed) {
-    server.kill("SIGTERM");
-  }
+afterAll(async () => {
+  await stopWebSocketTestServer(server);
 });
 
 async function createToken(user_id = "123") {
-  return jwt.sign(
+  const token = await jwt.sign(
     {
       user_id: user_id,
     },
-    "15m",
+    "365d",
     process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY!,
   );
+  console.log({ token });
+  return token;
 }
 
 function waitForConnectionReady(client: WebSocket): Promise<void> {
@@ -88,15 +69,11 @@ describe("WebSocket ping", () => {
     };
 
     const client_a = new WebSocket("ws://127.0.0.1:3000/ws", {
-      headers: {
-        Authorization: `Bearer ${client_a_token}`,
-      },
+      headers: { Authorization: `Bearer ${client_a_token}` },
     });
 
     const client_b = new WebSocket("ws://127.0.0.1:3000/ws", {
-      headers: {
-        Authorization: `Bearer ${client_b_token}`,
-      },
+      headers: { Authorization: `Bearer ${client_b_token}` },
     });
 
     const client_a_ready = waitForConnectionReady(client_a);
@@ -189,9 +166,7 @@ describe("WebSocket ping", () => {
     };
 
     const client_a = new WebSocket("ws://127.0.0.1:3000/ws", {
-      headers: {
-        Authorization: `Bearer ${client_a_token}`,
-      },
+      headers: { Authorization: `Bearer ${client_a_token}` },
     });
 
     const client_a_ready = waitForConnectionReady(client_a);
