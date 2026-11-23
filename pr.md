@@ -7,6 +7,8 @@
 - Keep a failure for one invalid recipient or group membership from rejecting the other recipients in the request.
 - Add optional `reply_to` message UUID metadata.
 - Restore pending primary and group messages when a WebSocket connection is established, using message actions.
+- Add a frontend channel/action registry that dispatches incoming WebSocket messages to component subscriptions. Raw message structs are normalized to `chat.message`, and server error objects to `system.error`.
+- Keep the message-event retrieval handshake in the WebSocket daemon while routing incoming frames through the registry.
 - Add test server logging to `logs/start.test.server.log` and ignore that generated log.
 - Update WebSocket tests for prefixed recipients and bulk results.
 
