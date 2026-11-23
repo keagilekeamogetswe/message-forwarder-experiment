@@ -8,42 +8,105 @@ import { CreateMessageForwarder } from "@/websocket/services/message.forwarder";
 import {
   ClientInitialMessagePayload,
   type MessageStruct,
-  type SentItem,
 } from "@/model/message";
 import { SendItemForwarder } from "./forwarders/sentItems";
 import { DeliveredItemForwarder } from "./forwarders/deliveredItems";
-import { PrimaryMessageActions } from "@/actions/message/primary.action";
+import {
+  SendMessageAction,
+  type RoutedMessage,
+} from "@/actions/send.message";
+
+function isInitialMessagePayload(
+  payload: unknown,
+): payload is ClientInitialMessagePayload {
+  if (typeof payload !== "object" || payload === null) return false;
+
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.recipient_id === "string" &&
+    typeof candidate.caption === "string" &&
+    Array.isArray(candidate.media_uploads) &&
+    candidate.media_uploads.every((item) => typeof item === "string") &&
+    typeof candidate.client_id === "string" &&
+    candidate.client_id.length > 0 &&
+    (candidate.reply_to === undefined || typeof candidate.reply_to === "string")
+  );
+}
+
+function sendError(ws: WSClient, message: string) {
+  return CreateMessageForwarder(
+    ws.user.user_id,
+    { success: false, message },
+    () => undefined,
+  )();
+}
+
+function getPersistenceError(error: unknown): string {
+  if (
+    error instanceof Error &&
+    (error.message === "User is not part of the specified group" ||
+      error.message === "Invalid group recipient ID")
+  ) {
+    return error.message;
+  }
+
+  return "Message could not be persisted";
+}
 
 const ChatSendEventHandler = async (
   data: WSMessage,
   ws: WSClient,
 ): Promise<void> => {
+  if (!isInitialMessagePayload(data.payload)) {
+    await sendError(ws, "Invalid send payload");
+    return;
+  }
+
   const message_uuid = randomUUID();
-  const payload = data.payload as ClientInitialMessagePayload;
-  const recipient_id = payload.recipient_id;
   const chat_message: MessageStruct = {
+    ...data.payload,
     message_uuid,
     sender_id: ws.user.user_id,
-    ...payload,
   };
-  const message_sent_feedback_dispatch = DeliveredItemForwarder(
-    ws.user.user_id,
-    [chat_message],
-  );
-  const sendToClient = CreateMessageForwarder(
-    recipient_id,
-    chat_message,
-    async () => {
-      void message_sent_feedback_dispatch();
-    },
-    async () => {
-      await PrimaryMessageActions.persistMessage(chat_message);
-      // infor the that the message haxs been sent to the server
-      void SendItemForwarder(chat_message.sender_id, [chat_message])();
-    },
-  );
 
-  await sendToClient();
+  let routed: RoutedMessage;
+  try {
+    routed = SendMessageAction.route(chat_message);
+  } catch (error) {
+    await sendError(
+      ws,
+      error instanceof Error ? error.message : "Invalid message recipient",
+    );
+    return;
+  }
+
+  if (routed.type === "primary") {
+    const sendToRecipient = CreateMessageForwarder(
+      routed.recipient_id,
+      routed.message,
+      async () => {
+        await DeliveredItemForwarder(ws.user.user_id, [routed.message])();
+      },
+      async () => {
+        try {
+          await SendMessageAction.persist(routed);
+          await SendItemForwarder(ws.user.user_id, [routed.message])();
+        } catch (error) {
+          await sendError(ws, getPersistenceError(error));
+        }
+      },
+    );
+
+    await sendToRecipient();
+    return;
+  }
+
+  try {
+    await SendMessageAction.persist(routed);
+    await SendItemForwarder(ws.user.user_id, [routed.message])();
+  } catch (error) {
+    await sendError(ws, getPersistenceError(error));
+  }
 };
 
 export default ChatSendEventHandler;
