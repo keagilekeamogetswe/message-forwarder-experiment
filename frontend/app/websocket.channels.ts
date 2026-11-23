@@ -1,3 +1,8 @@
+import {
+  MessageDirectoryService,
+  type IncomingChatMessage,
+} from "./message.directory";
+
 export type IncomingWebSocketMessage = {
   channel: string;
   action: string;
@@ -16,11 +21,28 @@ type ClientChannel = {
 // register handlers without coupling themselves to the socket implementation.
 const ChannelRegistry: Record<string, ClientChannel> = Object.create(null);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isMessageEvent(value: unknown): value is {
+  message_uuid: string;
+  client_id?: string;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+} {
+  return isRecord(value) && typeof value.message_uuid === "string";
+}
+
 function normalizeMessage(value: unknown): IncomingWebSocketMessage | null {
   if (!value || typeof value !== "object") return null;
 
   const message = value as Record<string, unknown>;
-  if (typeof message.channel === "string" && typeof message.action === "string") {
+  if (
+    typeof message.channel === "string" &&
+    typeof message.action === "string"
+  ) {
     return message as IncomingWebSocketMessage;
   }
 
@@ -54,9 +76,103 @@ export function registerWebSocketHandler(
   return () => {
     handlers.delete(handler);
     if (handlers.size === 0) delete channelEntry.actions[action];
-    if (Object.keys(channelEntry.actions).length === 0) delete ChannelRegistry[channel];
+    if (Object.keys(channelEntry.actions).length === 0)
+      delete ChannelRegistry[channel];
   };
 }
+
+registerWebSocketHandler("chat", "message", ({ payload }) => {
+  if (
+    isRecord(payload) &&
+    typeof payload.message_uuid === "string" &&
+    typeof payload.sender_id === "string" &&
+    typeof payload.recipient_id === "string"
+  ) {
+    MessageDirectoryService.addIncomingMessage(
+      payload as unknown as IncomingChatMessage,
+    );
+  }
+});
+
+registerWebSocketHandler("chat", "sent_items", ({ payload }) => {
+  if (!Array.isArray(payload)) return;
+  for (const item of payload) {
+    if (isMessageEvent(item)) MessageDirectoryService.updateSentItem(item);
+  }
+});
+
+registerWebSocketHandler("chat", "delivered_items", ({ payload }) => {
+  if (!Array.isArray(payload)) return;
+  for (const item of payload) {
+    if (isMessageEvent(item)) {
+      MessageDirectoryService.updateDeliveredItem(item);
+    }
+  }
+});
+
+registerWebSocketHandler("chat", "read_items", ({ payload }) => {
+  if (!Array.isArray(payload)) return;
+  for (const item of payload) {
+    if (isMessageEvent(item)) {
+      MessageDirectoryService.updateMessageState(
+        item.message_uuid,
+        "read",
+        item.read_at,
+      );
+    }
+  }
+});
+
+registerWebSocketHandler("message_events", "retrive", ({ payload }) => {
+  if (!isRecord(payload)) return;
+  const sentItems = payload.sent_items;
+  if (Array.isArray(sentItems)) {
+    for (const item of sentItems) {
+      if (isMessageEvent(item)) MessageDirectoryService.updateSentItem(item);
+    }
+  }
+  const deliveredItems = payload.delivered_items;
+  if (Array.isArray(deliveredItems)) {
+    for (const item of deliveredItems) {
+      if (isMessageEvent(item)) {
+        MessageDirectoryService.updateDeliveredItem(item);
+      }
+    }
+  }
+  const readItems = payload.read_items;
+  if (Array.isArray(readItems)) {
+    for (const item of readItems) {
+      if (isMessageEvent(item)) {
+        MessageDirectoryService.updateMessageState(
+          item.message_uuid,
+          "read",
+          item.read_at,
+        );
+      }
+    }
+  }
+});
+
+registerWebSocketHandler("chat", "bulk_sent", ({ payload }) => {
+  if (!isRecord(payload) || !Array.isArray(payload.results)) return;
+  for (const result of payload.results) {
+    if (!isRecord(result) || typeof result.message_uuid !== "string") continue;
+    MessageDirectoryService.updateMessageState(
+      result.message_uuid,
+      result.status === "failed" ? "failed" : "sent",
+    );
+  }
+});
+
+registerWebSocketHandler("system", "error", ({ payload }) => {
+  if (!isRecord(payload) || typeof payload.client_id !== "string") return;
+  MessageDirectoryService.updateMessageState(
+    payload.client_id,
+    "failed",
+    new Date().toISOString(),
+    typeof payload.message === "string" ? payload.message : "Message failed",
+  );
+});
 
 export function dispatchWebSocketMessage(
   value: unknown,
