@@ -34,7 +34,7 @@ async function createToken(user_id = "123") {
 
 describe("Message evnets testing", () => {
   it("Retrives pending message evnets and acknowledges them", async () => {
-    const author_user_id = "test-client";
+    const author_user_id = `test-client-${crypto.randomUUID()}`;
     const recipient_user_id = "recipient";
 
     await MessageEventsRepository.deliveredItems.persist(
