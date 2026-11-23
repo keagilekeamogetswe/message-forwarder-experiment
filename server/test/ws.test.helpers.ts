@@ -9,7 +9,7 @@ const serverPath = path.resolve(
 
 export async function startWebSocketTestServer(
   port = 3000,
-  extraEnv: NodeJS.ProcessEnv = {},
+  extraEnv: Partial<NodeJS.ProcessEnv> = {},
 ): Promise<ChildProcess> {
   const child = fork(serverPath, [], {
     env: { ...process.env, ...extraEnv, HTTP_PORT: String(port) },
