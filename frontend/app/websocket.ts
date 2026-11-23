@@ -1,3 +1,9 @@
+import {
+  dispatchWebSocketMessage,
+  registerWebSocketHandler,
+  type WebSocketMessageHandler,
+} from "./websocket.channels";
+
 export const ClientWebsocketDaemon = (() => {
   const websocketUrl = "ws://localhost:4000/ws";
 
@@ -82,16 +88,8 @@ export const ClientWebsocketDaemon = (() => {
         return;
       }
 
-      console.log("[WS] Message", payload);
-
-      if (
-        typeof payload === "object" &&
-        payload !== null &&
-        "channel" in payload &&
-        payload.channel === "message_events" &&
-        "action" in payload &&
-        payload.action === "retrive"
-      ) {
+      const message = dispatchWebSocketMessage(payload);
+      if (message?.channel === "message_events" && message.action === "retrive") {
         ready = true;
         if (readyTimeout) clearTimeout(readyTimeout);
         console.log("[WS] Ready to receive messages");
@@ -146,6 +144,10 @@ export const ClientWebsocketDaemon = (() => {
       }
 
       ws.send(JSON.stringify(data));
+    },
+
+    on(channel: string, action: string, handler: WebSocketMessageHandler) {
+      return registerWebSocketHandler(channel, action, handler);
     },
 
     getSocket() {
