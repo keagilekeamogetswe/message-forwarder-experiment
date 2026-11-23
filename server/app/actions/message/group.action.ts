@@ -1,18 +1,20 @@
 import { MessageStruct } from "@/model/message";
-import { MessageActions } from "@/model/message.actions";
 import { GroupProgress } from "@/repository/mongo/groups/user.progress";
 import MessageRepository, {
   COLLECTION_NAMES,
 } from "@/repository/mongo/message";
 import { ObjectId } from "mongodb";
 
-export const GroupMessageActions: MessageActions = (() => {
+export const GroupMessageActions = (() => {
   const collection_name = COLLECTION_NAMES.group;
 
   return {
     persistMessage: async (message: MessageStruct) => {
+      if (!ObjectId.isValid(message.recipient_id)) {
+        throw new Error("Invalid group recipient ID");
+      }
+
       const group_recipient: ObjectId = new ObjectId(message.recipient_id);
-      console.log("type of ", typeof message.recipient_id);
       const is_part_of_group = await GroupProgress.hasGroup(
         message.sender_id,
         group_recipient,
@@ -22,6 +24,41 @@ export const GroupMessageActions: MessageActions = (() => {
         throw new Error("User is not part of the specified group");
       }
       return await MessageRepository.persistMessage(collection_name, message);
+    },
+    async persistMessages(messages: MessageStruct[]): Promise<Map<string, string | null>> {
+      const results = new Map<string, string | null>();
+      const validByGroup = new Map<string, MessageStruct[]>();
+
+      for (const message of messages) {
+        if (!ObjectId.isValid(message.recipient_id)) {
+          results.set(message.message_uuid, "Invalid group recipient ID");
+          continue;
+        }
+        const groupId = new ObjectId(message.recipient_id);
+        if (!(await GroupProgress.hasGroup(message.sender_id, groupId))) {
+          results.set(message.message_uuid, "User is not part of the specified group");
+          continue;
+        }
+        const groupMessages = validByGroup.get(message.recipient_id) ?? [];
+        groupMessages.push(message);
+        validByGroup.set(message.recipient_id, groupMessages);
+      }
+
+      for (const groupMessages of validByGroup.values()) {
+        try {
+          const persisted = await MessageRepository.persistMessages(
+            collection_name,
+            groupMessages,
+          );
+          if (!persisted) throw new Error("Message could not be persisted");
+          for (const message of groupMessages) results.set(message.message_uuid, null);
+        } catch {
+          for (const message of groupMessages) {
+            results.set(message.message_uuid, "Message could not be persisted");
+          }
+        }
+      }
+      return results;
     },
     // No acknowlegement for group messages
     // They have a retention policy
@@ -58,7 +95,6 @@ export const GroupMessageActions: MessageActions = (() => {
       if (group_ids.length === 0) {
         return [];
       }
-      console.log(group_ids);
       const messages: MessageStruct[] = await MessageRepository.readMessages(
         collection_name,
         group_ids,
@@ -66,7 +102,6 @@ export const GroupMessageActions: MessageActions = (() => {
         limit,
         last_message_id,
       );
-      console.log({ messages });
       return messages;
     },
   };
