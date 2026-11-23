@@ -29,7 +29,6 @@ async function createToken(user_id = "123") {
     "365d",
     process.env.JWT_ACCESS_TOKEN_PRIVATE_KEY!,
   );
-  console.log({ token });
   return token;
 }
 
@@ -62,7 +61,7 @@ describe("WebSocket ping", () => {
     const client_b_token = await createToken(client_b_id);
 
     const message_payload = {
-      recipient_id: client_b_id,
+      recipient_id: `#${client_b_id}`,
       caption: "testing message",
       media_uploads: [],
       client_id: "client-assigned-message-id",
@@ -152,6 +151,79 @@ describe("WebSocket ping", () => {
     client_a.close();
     client_b.close();
   });
+
+  it("bulk sends per-recipient copies and reports invalid recipients", async () => {
+    const senderId = `bulk-sender-${crypto.randomUUID()}`;
+    const token = await createToken(senderId);
+    const client = new WebSocket("ws://127.0.0.1:3000/ws", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const ready = waitForConnectionReady(client);
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        client.once("open", resolve);
+        client.once("error", reject);
+      }),
+      ready,
+    ]);
+
+    const firstRecipient = `bulk-offline-a-${crypto.randomUUID()}`;
+    const secondRecipient = `bulk-offline-b-${crypto.randomUUID()}`;
+    const replyTo = crypto.randomUUID();
+    const bulkSent = new Promise<Record<string, any>>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("bulk send result timeout")),
+        5000,
+      );
+      client.on("message", (data) => {
+        const response = JSON.parse(data.toString());
+        if (response.channel === "chat" && response.action === "bulk_sent") {
+          clearTimeout(timeout);
+          resolve(response.payload);
+        }
+      });
+      client.once("error", reject);
+    });
+
+    client.send(JSON.stringify({
+      channel: "chat",
+      action: "bulk_send",
+      payload: {
+        recipients: [`#${firstRecipient}`, "missing-prefix", `#${secondRecipient}`],
+        caption: "bulk message",
+        media_uploads: [],
+        client_id: "bulk-client-id",
+        reply_to: replyTo,
+      },
+    }));
+
+    const result = await bulkSent;
+    expect(result.results).toHaveLength(3);
+    expect(result.results[0]).toMatchObject({ recipient: `#${firstRecipient}`, status: "sent" });
+    expect(result.results[1]).toMatchObject({ recipient: "missing-prefix", status: "failed" });
+    expect(result.results[1].error).toContain("start with @, #, or $");
+    expect(result.results[2]).toMatchObject({ recipient: `#${secondRecipient}`, status: "sent" });
+
+    const stored = await Database.getMongoCollection("primary_messages");
+    const messages = await stored.find({ bulk_id: result.bulk_id }).toArray();
+    expect(messages).toHaveLength(2);
+    expect(new Set(messages.map((message) => message.message_uuid)).size).toBe(2);
+    expect(messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        recipient_id: firstRecipient,
+        recipient_type: "primary",
+        reply_to: replyTo,
+      }),
+      expect.objectContaining({
+        recipient_id: secondRecipient,
+        recipient_type: "primary",
+        reply_to: replyTo,
+      }),
+    ]));
+
+    client.close();
+  }, 15000);
+
   it("handles recipient offline", async () => {
     const client_a_id = "A as Identified";
     const offline_user_id = `offline-user-${crypto.randomUUID()}`;
@@ -159,7 +231,7 @@ describe("WebSocket ping", () => {
     const client_a_token = await createToken(client_a_id);
 
     const message_payload = {
-      recipient_id: offline_user_id,
+      recipient_id: `#${offline_user_id}`,
       caption: "recipient is offline",
       media_uploads: [],
       client_id: "offline-test-client-id",
