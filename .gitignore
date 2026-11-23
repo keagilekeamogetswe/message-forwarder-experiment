@@ -1,3 +1,4 @@
 **/node_modules/
 server/app/config/tls/certs/
 frontend/.env.local
+/logs/start.test.server*.log
