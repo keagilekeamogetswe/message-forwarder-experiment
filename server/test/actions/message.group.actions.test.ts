@@ -67,6 +67,44 @@ describe("GroupMessageActions", () => {
     );
   });
 
+  it("persists valid group recipients while reporting invalid memberships", async () => {
+    const user_id = "bulk-group-sender";
+    const valid_group_id = new ObjectId();
+    const invalid_group_id = new ObjectId();
+    await GroupProgress.addGroup(user_id, valid_group_id);
+
+    const valid_message = {
+      message_uuid: crypto.randomUUID(),
+      sender_id: user_id,
+      recipient_id: valid_group_id.toString(),
+      caption: "valid group message",
+      media_uploads: [],
+      client_id: "bulk-client",
+    };
+    const invalid_message = {
+      ...valid_message,
+      message_uuid: crypto.randomUUID(),
+      recipient_id: invalid_group_id.toString(),
+    };
+
+    const results = await GroupMessageActions.persistMessages([
+      valid_message,
+      invalid_message,
+    ]);
+
+    expect(results.get(valid_message.message_uuid)).toBeNull();
+    expect(results.get(invalid_message.message_uuid)).toBe(
+      "User is not part of the specified group",
+    );
+    const stored = await MessageRepository.readMessages(
+      COLLECTION_NAMES.group,
+      valid_group_id.toString(),
+    );
+    expect(stored.map((message) => message.message_uuid)).toContain(
+      valid_message.message_uuid,
+    );
+  });
+
   it("acknowledges no messages when array is empty", async () => {
     const result = await GroupMessageActions.acknowledgeMessages("user-1", []);
 
