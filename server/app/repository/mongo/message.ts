@@ -22,6 +22,16 @@ const MessageRepository = (() => {
       const result = await collection.insertOne(message);
       return result.acknowledged;
     },
+    async persistMessages(
+      collection_name: MessageCollection,
+      messages: MessageStruct[],
+    ): Promise<boolean> {
+      if (messages.length === 0) return true;
+      const collection =
+        await Database.getMongoCollection<MessageStruct>(collection_name);
+      const result = await collection.insertMany(messages, { ordered: false });
+      return result.acknowledged;
+    },
     async readMessages(
       collection_name: MessageCollection,
       user_id: string | string[],
