@@ -46,6 +46,8 @@ const childEnv = {
   ...process.env,
   HTTP_PORT: backendPort,
   HTTPS_ENABLED: "false",
+  NODE_ENV: "development",
+  WS_TEST_AUTH_ENABLED: "true",
   NEXT_TELEMETRY_DISABLED: "1",
 };
 const frontendEnv = {};
@@ -88,7 +90,15 @@ children.push(backend);
 const frontend = spawn(
   process.execPath,
   [
-    path.join(repoRoot, "frontend", "node_modules", "next", "dist", "bin", "next"),
+    path.join(
+      repoRoot,
+      "frontend",
+      "node_modules",
+      "next",
+      "dist",
+      "bin",
+      "next",
+    ),
     "dev",
     "--hostname",
     "localhost",
@@ -106,7 +116,8 @@ function stop(exitCode, signal = "SIGTERM") {
   rmSync(tokenFile, { force: true });
 
   for (const child of children) {
-    if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill(signal);
   }
 
   process.exitCode = exitCode;
