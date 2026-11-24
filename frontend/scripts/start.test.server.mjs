@@ -29,7 +29,7 @@ const { default: jwt } = await import(
 );
 const testToken = await jwt.sign(
   { user_id: process.env.WS_TEST_USER_ID ?? "test-user" },
-  "1h",
+  "24h",
   privateKey,
 );
 
