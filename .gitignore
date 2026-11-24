@@ -1,4 +1,5 @@
 **/node_modules/
-server/app/config/tls/certs/
+server/app/config/tls/certs/*
+!server/app/config/tls/certs/README.md
 frontend/.env.local
 /logs/start.test.server*.log
