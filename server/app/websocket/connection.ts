@@ -7,6 +7,7 @@ import { PrimaryMessageActions } from "@/actions/message/primary.action";
 import { GroupMessageActions } from "@/actions/message/group.action";
 import { CreateMessageForwarder } from "./services/message.forwarder";
 import { DeliveredItemForwarder } from "./channels/chat/forwarders/deliveredItems";
+import { ObjectId } from "mongodb";
 
 export function WSConnectionEvent(ws: WSClient) {
   const user = ws.user;
@@ -67,8 +68,13 @@ async function restorePendingItems(ws: WSClient): Promise<void> {
       user_id,
       message,
       async () => {
-        await GroupMessageActions.acknowledgeMessages(user_id, [pendingMessageId]);
-        await DeliveredItemForwarder(message.sender_id, [message])();
+        if (!ObjectId.isValid(message.recipient_id)) return;
+        const acknowledged = await GroupMessageActions.acknowledgeMessage(
+          user_id,
+          new ObjectId(message.recipient_id),
+          pendingMessageId,
+        );
+        if (!acknowledged) return;
       },
       () => undefined,
     )();

@@ -11,10 +11,7 @@ import {
 } from "@/model/message";
 import { SendItemForwarder } from "./forwarders/sentItems";
 import { DeliveredItemForwarder } from "./forwarders/deliveredItems";
-import {
-  SendMessageAction,
-  type RoutedMessage,
-} from "@/actions/send.message";
+import { SendMessageAction, type RoutedMessage } from "@/actions/send.message";
 
 function isInitialMessagePayload(
   payload: unknown,
@@ -33,10 +30,10 @@ function isInitialMessagePayload(
   );
 }
 
-function sendError(ws: WSClient, message: string) {
+function sendError(ws: WSClient, message: string, client_id?: string) {
   return CreateMessageForwarder(
     ws.user.user_id,
-    { success: false, message },
+    { success: false, message, ...(client_id ? { client_id } : {}) },
     () => undefined,
   )();
 }
@@ -76,6 +73,7 @@ const ChatSendEventHandler = async (
     await sendError(
       ws,
       error instanceof Error ? error.message : "Invalid message recipient",
+      chat_message.client_id,
     );
     return;
   }
@@ -92,7 +90,11 @@ const ChatSendEventHandler = async (
           await SendMessageAction.persist(routed);
           await SendItemForwarder(ws.user.user_id, [routed.message])();
         } catch (error) {
-          await sendError(ws, getPersistenceError(error));
+          await sendError(
+            ws,
+            getPersistenceError(error),
+            chat_message.client_id,
+          );
         }
       },
     );
@@ -105,7 +107,7 @@ const ChatSendEventHandler = async (
     await SendMessageAction.persist(routed);
     await SendItemForwarder(ws.user.user_id, [routed.message])();
   } catch (error) {
-    await sendError(ws, getPersistenceError(error));
+    await sendError(ws, getPersistenceError(error), chat_message.client_id);
   }
 };
 

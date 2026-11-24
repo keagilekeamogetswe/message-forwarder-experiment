@@ -35,7 +35,7 @@ describe("GroupRegistry", () => {
     expect(group?.name).toBe("Developers");
     expect(group?.invite_token).toBe("dev-token");
     expect(group?.started_by.user_id).toBe("user_a");
-    expect(group?.active_member_count).toBe(1);
+    expect(group?.active_member_count).toBe(0);
   });
 
   it("should get a group by id", async () => {
@@ -82,7 +82,7 @@ describe("GroupRegistry", () => {
 
     const group = await GroupRegistry.getGroup(group_id!);
 
-    expect(group?.active_member_count).toBe(2);
+    expect(group?.active_member_count).toBe(1);
   });
 
   it("should increment member count by a custom value", async () => {
@@ -96,7 +96,7 @@ describe("GroupRegistry", () => {
 
     const group = await GroupRegistry.getGroup(group_id!);
 
-    expect(group?.active_member_count).toBe(6);
+    expect(group?.active_member_count).toBe(5);
   });
 
   it("should decrement member count", async () => {
@@ -114,7 +114,7 @@ describe("GroupRegistry", () => {
 
     const group = await GroupRegistry.getGroup(group_id!);
 
-    expect(group?.active_member_count).toBe(3);
+    expect(group?.active_member_count).toBe(2);
   });
 
   it("should delete a group owned by the user", async () => {

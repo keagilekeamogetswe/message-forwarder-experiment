@@ -71,9 +71,17 @@ export const MessageReadItemsEventHandler = async (
     return;
   }
 
+  const groupMessageUUIDs = await MessageEventsRepository.getGroupMessageUUIDs(
+    payload.message_ids,
+  );
+  const readableMessageIds = payload.message_ids.filter(
+    (message_id) => !groupMessageUUIDs.has(message_id),
+  );
+  if (!readableMessageIds.length) return;
+
   await ReadItemForwarder(
     payload.sender_id,
     ws.user.user_id,
-    payload.message_ids,
+    readableMessageIds,
   )();
 };
