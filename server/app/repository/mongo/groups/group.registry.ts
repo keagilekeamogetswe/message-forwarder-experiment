@@ -28,7 +28,7 @@ const GroupRegistry = (() => {
 
         invite_token,
 
-        active_member_count: 0,
+        active_member_count: 1,
       });
 
       return result.acknowledged ? result.insertedId : null;

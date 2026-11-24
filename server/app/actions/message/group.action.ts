@@ -4,7 +4,6 @@ import MessageRepository, {
   COLLECTION_NAMES,
 } from "@/repository/mongo/message";
 import { ObjectId } from "mongodb";
-import { GroupActions } from "@/actions/group.action";
 
 export const GroupMessageActions = (() => {
   const collection_name = COLLECTION_NAMES.group;
@@ -83,34 +82,27 @@ export const GroupMessageActions = (() => {
       return updated ? message_ids.length : 0;
     },
     // Group has a special kind of read
-    async acknowledgeMessage(user_id: string, group_id: ObjectId, message_id: ObjectId): Promise<boolean> {
-      return GroupActions.acknowledgeGroupMessage(user_id, group_id, message_id);
-    },
-
     async readMessages(user_id: string) {
-      const reads: Promise<MessageStruct[]>[] = [];
-      const legacyCursor = await GroupProgress.getLastMessageMessageID(user_id);
-      for (const group_id of await GroupProgress.getGroups(user_id)) {
-        const cursor = await GroupProgress.getGroupMessageCursor(user_id, group_id);
-        reads.push(MessageRepository.readMessages(
-          collection_name, group_id.toHexString(), {}, 0, cursor ?? legacyCursor,
-        ));
+      const [ignore, limit] = [{}, 0];
+
+      const last_message_id =
+        await GroupProgress.getLastMessageMessageID(user_id);
+
+      const group_ids = (await GroupProgress.getGroups(user_id)).map(
+        (recipient_id) => recipient_id.toString(),
+      );
+
+      if (group_ids.length === 0) {
+        return [];
       }
-      for (const invite of await GroupActions.getPendingInvites(user_id)) {
-        reads.push(MessageRepository.readMessages(
-          collection_name, invite.group_id.toHexString(), {}, 0, invite.coverage,
-        ));
-      }
-      const messages = (await Promise.all(reads)).flat();
-      const seen = new Set<string>();
-      return messages
-        .filter((message) => {
-          const id = message._id?.toHexString();
-          if (!id || seen.has(id)) return false;
-          seen.add(id);
-          return true;
-        })
-        .sort((a, b) => (a._id?.toHexString() ?? "").localeCompare(b._id?.toHexString() ?? ""));
+      const messages: MessageStruct[] = await MessageRepository.readMessages(
+        collection_name,
+        group_ids,
+        ignore,
+        limit,
+        last_message_id,
+      );
+      return messages;
     },
   };
 })();

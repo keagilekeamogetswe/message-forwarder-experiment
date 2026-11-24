@@ -1,4 +1,6 @@
 import { ObjectId } from "mongodb";
+import GroupParticipants from "../group.participants";
+
 export interface GroupParticipants {
   _id?: ObjectId;
 

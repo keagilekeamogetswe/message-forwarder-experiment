@@ -2,15 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import JWTHelper from "../../utility/jwt";
 export const WSAccessRoute = Router().get("/wsaccess", async (req, res) => {
-  // The local test stack uses one bootstrap bearer token for multiple browser
-  // identities. Never enable this override in production.
-  const testUserId = req.query.test_user_id;
-  const allowTestIdentity =
-    process.env.NODE_ENV !== "production" &&
-    process.env.WS_TEST_AUTH_ENABLED === "true" &&
-    typeof testUserId === "string" &&
-    testUserId.trim().length > 0;
-  const user_id = allowTestIdentity ? testUserId.trim() : req.user?.user_id;
+  const user_id = req.user?.user_id;
 
   if (!user_id) {
     return res

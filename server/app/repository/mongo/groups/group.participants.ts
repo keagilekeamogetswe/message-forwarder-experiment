@@ -1,10 +1,6 @@
 import Database from "@/db";
 import { ObjectId } from "mongodb";
 import GroupRegistry from "./group.registry";
-import type { GroupParticipants as ParticipantRecord } from "./models/participants";
-
-export type GroupRole = ParticipantRecord["role"];
-export type GroupJoinMethod = ParticipantRecord["join_method"];
 
 export const GroupParticipants = (() => {
   const active_collection_name = "group_participants";
@@ -14,8 +10,7 @@ export const GroupParticipants = (() => {
     async addUser(
       user_id: string,
       group_id: ObjectId,
-      join_method: GroupJoinMethod = "added",
-      role: GroupRole = "member",
+      join_method = "added",
     ): Promise<boolean> {
       const active_collection = await Database.getMongoCollection(
         active_collection_name,
@@ -30,9 +25,9 @@ export const GroupParticipants = (() => {
           $setOnInsert: {
             user_id,
             group_id,
-            role,
+            role: "member",
             join_method,
-            joined_at: Date.now(),
+            joined_at: new Date().toISOString(),
           },
         },
         {
@@ -77,7 +72,7 @@ export const GroupParticipants = (() => {
 
     async updateRole(
       user_id: string,
-      role: GroupRole,
+      role: string,
       group_id: ObjectId,
     ): Promise<boolean> {
       const active_collection = await Database.getMongoCollection(
@@ -97,16 +92,6 @@ export const GroupParticipants = (() => {
       );
 
       return result.modifiedCount > 0;
-    },
-
-    async getUser(user_id: string, group_id: ObjectId): Promise<ParticipantRecord | null> {
-      const collection = await Database.getMongoCollection<ParticipantRecord>(active_collection_name);
-      return collection.findOne({ user_id, group_id });
-    },
-
-    async getGroupUsers(group_id: ObjectId): Promise<ParticipantRecord[]> {
-      const collection = await Database.getMongoCollection<ParticipantRecord>(active_collection_name);
-      return collection.find({ group_id }).sort({ joined_at: 1, _id: 1 }).toArray();
     },
   };
 })();
