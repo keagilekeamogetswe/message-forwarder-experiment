@@ -42,6 +42,16 @@ export interface MessageEventsPartition {
 export const MessageEventsRepository = (() => {
   const collection_name = "message_events";
 
+  const getGroupMessageUUIDs = async (message_uuids: string[]): Promise<Set<string>> => {
+    if (!message_uuids.length) return new Set();
+    const groupMessages = await Database.getMongoCollection<{ message_uuid: string }>("group_messages");
+    const messages = await groupMessages
+      .find({ message_uuid: { $in: message_uuids } })
+      .project<{ message_uuid: string }>({ message_uuid: 1, _id: 0 })
+      .toArray();
+    return new Set(messages.map((message) => message.message_uuid));
+  };
+
   const getCollection = () =>
     Database.getMongoCollection<MessageEvent | SendMessageEvent>(
       collection_name,
@@ -89,6 +99,16 @@ export const MessageEventsRepository = (() => {
       .limit(limit)
       .toArray();
 
+    const groupMessageUUIDs = await getGroupMessageUUIDs(
+      events.filter((event) => event.type !== "sent").map((event) => event.message_uuid),
+    );
+    const staleGroupEvents = events.filter(
+      (event) => event.type !== "sent" && groupMessageUUIDs.has(event.message_uuid),
+    );
+    if (staleGroupEvents.length) {
+      await collection.deleteMany({ _id: { $in: staleGroupEvents.map((event) => event._id) } });
+    }
+
     const result: MessageEventsPartition = {
       sent_items: [],
       delivered_items: [],
@@ -96,6 +116,7 @@ export const MessageEventsRepository = (() => {
     };
 
     for (const event of events) {
+      if (event.type !== "sent" && groupMessageUUIDs.has(event.message_uuid)) continue;
       switch (event.type) {
         case "sent":
           result.sent_items.push({
@@ -125,6 +146,8 @@ export const MessageEventsRepository = (() => {
   };
 
   return {
+    getGroupMessageUUIDs,
+
     sentItems: {
       async persist(
         user_id: string,
