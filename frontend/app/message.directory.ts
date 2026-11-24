@@ -165,6 +165,12 @@ function updateState(
   const key = keyByMessageUuid.get(identifier) ?? keyByClientId.get(identifier);
   const item = key ? messagesByKey.get(key) : undefined;
   if (!item) return;
+  if (
+    item.recipient_type === "group" &&
+    (state === "delivered" || state === "read")
+  ) {
+    return;
+  }
 
   const rank: Record<MessageState, number> = {
     sending: 0,
