@@ -38,6 +38,7 @@ const MessageRepository = (() => {
       ignore: MessageFlags = {},
       limit = 0,
       offset_id?: ObjectId | null,
+      through_id?: ObjectId | null,
     ): Promise<MessageStruct[]> {
       const collection =
         await Database.getMongoCollection<MessageStruct>(collection_name);
@@ -51,9 +52,12 @@ const MessageRepository = (() => {
             }
           : {}),
 
-        ...(offset_id
+        ...(offset_id || through_id
           ? {
-              _id: { $gt: offset_id },
+              _id: {
+                ...(offset_id ? { $gt: offset_id } : {}),
+                ...(through_id ? { $lte: through_id } : {}),
+              },
             }
           : {}),
       };
@@ -63,6 +67,18 @@ const MessageRepository = (() => {
         .sort({ _id: 1 })
         .limit(limit)
         .toArray();
+    },
+
+    async getLatestMessageId(
+      collection_name: MessageCollection,
+      recipient_id: string,
+    ): Promise<ObjectId | null> {
+      const collection = await Database.getMongoCollection<MessageStruct>(collection_name);
+      const message = await collection.findOne(
+        { recipient_id },
+        { projection: { _id: 1 }, sort: { _id: -1 } },
+      );
+      return message?._id ?? null;
     },
 
     async flagMessages(
