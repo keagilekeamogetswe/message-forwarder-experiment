@@ -6,7 +6,7 @@ import { GroupProgress } from "@/repository/mongo/groups/user.progress";
 import { UserGroupProgress } from "@/repository/mongo/groups/models/user.progress";
 
 describe("Testing the use cases in Group Progress", () => {
-  const COLLECTION = "user_group_progress";
+  const COLLECTION = "user_progression";
 
   beforeEach(async () => {
     const collection =
