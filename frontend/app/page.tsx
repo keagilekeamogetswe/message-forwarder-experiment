@@ -18,6 +18,13 @@ const stateLabels: Record<MessageState, string> = {
   failed: "Failed",
 };
 
+type GroupSummary = { group_id: string; name: string; role: string };
+type GroupInvite = { group_id: string; name: string };
+
+function upsertGroup(groups: GroupSummary[], next: GroupSummary): GroupSummary[] {
+  return [...groups.filter((group) => group.group_id !== next.group_id), next];
+}
+
 function MessageBubble({
   message,
   onReply,
@@ -136,6 +143,11 @@ export default function Home() {
   const [attachmentUrls, setAttachmentUrls] = useState("");
   const [replyTo, setReplyTo] = useState("");
   const [clientIdInput, setClientIdInput] = useState("");
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groupInvites, setGroupInvites] = useState<GroupInvite[]>([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [inviteUserId, setInviteUserId] = useState("");
+  const [inviteGroupId, setInviteGroupId] = useState("");
 
   useEffect(() => {
     const refreshChats = () => {
@@ -163,16 +175,68 @@ export default function Home() {
         setConnectionError(payload?.message ?? "WebSocket error");
       },
     );
+    const unsubscribeGroupList = ClientWebsocketDaemon.on("group", "list", (message) => {
+      const payload = message.payload as { groups?: GroupSummary[]; invites?: GroupInvite[] } | undefined;
+      setGroups(Array.isArray(payload?.groups) ? payload.groups : []);
+      setGroupInvites(Array.isArray(payload?.invites) ? payload.invites : []);
+    });
+    const unsubscribeGroupCreated = ClientWebsocketDaemon.on("group", "created", (message) => {
+      const group = message.payload as GroupSummary | undefined;
+      if (!group?.group_id || !group.name) return;
+      setGroups((current) => upsertGroup(current, group));
+      setInviteGroupId(group.group_id);
+      setSelectedChatId(`$${group.group_id}`);
+      setRecipient(`$${group.group_id}`);
+      setNewGroupName("");
+      setConnectionError(`Created group ${group.name}`);
+    });
+    const unsubscribeGroupInvited = ClientWebsocketDaemon.on("group", "invited", (message) => {
+      const payload = message.payload as { user_id?: string } | undefined;
+      setConnectionError(payload?.user_id ? `Invite sent to ${payload.user_id}` : "Invite sent");
+      setInviteUserId("");
+    });
+    const unsubscribeInviteReceived = ClientWebsocketDaemon.on("group", "invite_received", (message) => {
+      const invite = message.payload as GroupInvite | undefined;
+      if (invite?.group_id && invite.name) {
+        setGroupInvites((current) => [...current.filter((item) => item.group_id !== invite.group_id), invite]);
+      }
+    });
+    const unsubscribeGroupAccepted = ClientWebsocketDaemon.on("group", "accepted", (message) => {
+      const group = message.payload as GroupSummary | undefined;
+      if (!group?.group_id || !group.name) return;
+      setGroups((current) => upsertGroup(current, { ...group, role: "member" }));
+      setGroupInvites((current) => current.filter((invite) => invite.group_id !== group.group_id));
+      setSelectedChatId(`$${group.group_id}`);
+      setRecipient(`$${group.group_id}`);
+      setConnectionError(`Joined ${group.name}`);
+    });
+    const unsubscribeGroupError = ClientWebsocketDaemon.on("group", "error", (message) => {
+      const payload = message.payload as { message?: string } | undefined;
+      setConnectionError(payload?.message ?? "Group action failed");
+    });
 
     return () => {
       unsubscribeInbox();
       unsubscribeMessageEvents();
       unsubscribeConnection();
       unsubscribeError();
+      unsubscribeGroupList();
+      unsubscribeGroupCreated();
+      unsubscribeGroupInvited();
+      unsubscribeInviteReceived();
+      unsubscribeGroupAccepted();
+      unsubscribeGroupError();
     };
   }, []);
 
+  useEffect(() => {
+    if (activeUserId && connectionState === "ready") {
+      ClientWebsocketDaemon.send({ channel: "group", action: "list", payload: {} });
+    }
+  }, [activeUserId, connectionState]);
+
   const selectedChat = chats.find((chat) => chat.id === selectedChatId) ?? null;
+  const selectedGroup = groups.find((group) => `$${group.group_id}` === selectedChatId) ?? null;
   const dialogueMessages = useMemo(
     () =>
       selectedChatId ? MessageDirectoryService.getMessages(selectedChatId) : [],
@@ -185,6 +249,7 @@ export default function Home() {
     for (const message of MessageDirectoryService.getMessages(selectedChatId)) {
       if (
         message.direction !== "incoming" ||
+        message.recipient_type === "group" ||
         message.state !== "received" ||
         !message.message_uuid
       ) {
@@ -275,6 +340,33 @@ export default function Home() {
     }
   }
 
+  function createGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newGroupName.trim();
+    if (!name || connectionState !== "ready") return;
+    ClientWebsocketDaemon.send({ channel: "group", action: "create", payload: { name } });
+  }
+
+  function inviteMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const user_id = inviteUserId.trim();
+    if (!user_id || !inviteGroupId || connectionState !== "ready") return;
+    ClientWebsocketDaemon.send({
+      channel: "group",
+      action: "invite",
+      payload: { group_id: inviteGroupId, user_id },
+    });
+  }
+
+  function acceptInvite(invite: GroupInvite) {
+    if (connectionState !== "ready") return;
+    ClientWebsocketDaemon.send({
+      channel: "group",
+      action: "accept",
+      payload: { group_id: invite.group_id },
+    });
+  }
+
   if (!activeUserId) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
@@ -342,6 +434,70 @@ export default function Home() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-3">
+            <section className="mb-5 rounded-xl border border-slate-200 p-3">
+              <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Groups</h2>
+              <form className="mt-3 flex gap-2" onSubmit={createGroup}>
+                <input
+                  aria-label="New group name"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs"
+                  onChange={(event) => setNewGroupName(event.target.value)}
+                  placeholder="Group name"
+                  value={newGroupName}
+                />
+                <button className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white disabled:bg-slate-300" disabled={connectionState !== "ready" || !newGroupName.trim()} type="submit">Create</button>
+              </form>
+              {groups.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {groups.map((group) => (
+                    <button
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs ${selectedChatId === `$${group.group_id}` ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50"}`}
+                      key={group.group_id}
+                      onClick={() => {
+                        setSelectedChatId(`$${group.group_id}`);
+                        setRecipient(`$${group.group_id}`);
+                        setInviteGroupId(group.group_id);
+                      }}
+                      type="button"
+                    >
+                      <span className="truncate">{group.name}</span><span className="ml-2 text-slate-400">{group.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {groups.length > 0 && (groups.some((group) => group.role === "owner" || group.role === "admin")) && (
+                <form className="mt-3 space-y-2 border-t border-slate-100 pt-3" onSubmit={inviteMember}>
+                  <select
+                    aria-label="Group to invite into"
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs"
+                    onChange={(event) => setInviteGroupId(event.target.value)}
+                    value={inviteGroupId || groups.find((group) => group.role === "owner" || group.role === "admin")?.group_id || ""}
+                  >
+                    {groups.filter((group) => group.role === "owner" || group.role === "admin").map((group) => <option key={group.group_id} value={group.group_id}>{group.name}</option>)}
+                  </select>
+                  <div className="flex gap-2">
+                    <input
+                      aria-label="Member user ID"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs"
+                      onChange={(event) => setInviteUserId(event.target.value)}
+                      placeholder="Member user ID"
+                      value={inviteUserId}
+                    />
+                    <button className="rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-medium disabled:opacity-50" disabled={connectionState !== "ready" || !inviteUserId.trim()} type="submit">Invite</button>
+                  </div>
+                </form>
+              )}
+              {groupInvites.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Pending invitations</p>
+                  {groupInvites.map((invite) => (
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2" key={invite.group_id}>
+                      <span className="truncate text-xs">{invite.name}</span>
+                      <button className="shrink-0 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white disabled:bg-slate-300" disabled={connectionState !== "ready"} onClick={() => acceptInvite(invite)} type="button">Accept</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
             <h2 className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Chats
             </h2>
@@ -371,7 +527,7 @@ export default function Home() {
                 Dialogue
               </p>
               <h2 className="font-semibold">
-                {selectedChat?.id ?? "New message"}
+                {selectedGroup?.name ?? selectedChat?.id ?? "New message"}
               </h2>
             </div>
             <span
