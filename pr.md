@@ -1,4 +1,4 @@
-# WebSocket bulk messaging and pending-message retrieval
+# WebSocket Playground and Bulk Messaging
 
 ## Summary
 
@@ -9,9 +9,6 @@
 - Restore pending primary and group messages when a WebSocket connection is established, using message actions.
 - Add a frontend channel/action registry that dispatches incoming WebSocket messages to component subscriptions. Raw message structs are normalized to `chat.message`, and server error objects to `system.error`.
 - Keep the message-event retrieval handshake in the WebSocket daemon while routing incoming frames through the registry.
-- Add a browser chat playground at `/` and `/chats` with a user ID connect form, prefixed recipient field, message/reply/client ID inputs, and a fixed URL list field for media uploads.
-- Keep per-user conversations and per-message send/delivery/read state in `MessageDirectoryService`, keyed for direct message and reply lookups. Message bubbles subscribe to their own state and stop listening once read.
-- Enable distinct browser test identities through a guarded test-stack-only cookie endpoint option; the test private key stays on the server.
 - Add a browser chat playground with a user ID connect form, prefixed recipient field, message/reply/client ID inputs, and a fixed URL list field for media uploads.
 - Keep per-user conversations and per-message send/delivery/read state in `MessageDirectoryService`, keyed for direct message and reply lookups. Message bubbles subscribe to their own state and stop listening once read.
 - Enable distinct browser test identities through a guarded test-stack-only cookie endpoint option; the test private key stays on the server.
