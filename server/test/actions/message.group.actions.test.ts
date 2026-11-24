@@ -15,7 +15,7 @@ describe("GroupMessageActions", () => {
     );
 
     const progressCollection = await Database.getMongoCollection(
-      "user_group_progress",
+      "user_progression",
     );
 
     await groupCollection.deleteMany({});
